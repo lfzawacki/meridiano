@@ -1,0 +1,298 @@
+# simple-meridian/run_briefing.py
+
+import os
+import feedparser
+import requests
+import trafilatura
+from datetime import datetime
+import json
+import time
+import numpy as np
+from sklearn.cluster import KMeans
+from dotenv import load_dotenv
+from deepseek import Deepseek
+
+import config
+import database
+
+# --- Setup ---
+load_dotenv()
+API_KEY = os.getenv("DEEPSEEK_API_KEY")
+if not API_KEY:
+    raise ValueError("DEEPSEEK_API_KEY not found in .env file")
+
+client = Deepseek(api_key=API_KEY)
+
+# --- Helper Functions ---
+
+def fetch_article_content(url):
+    """Fetches and extracts main content from a URL."""
+    try:
+        # Use a common user-agent
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+        # Extract main content using trafilatura
+        content = trafilatura.extract(response.text, include_comments=False, include_tables=False)
+        return content
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching {url}: {e}")
+        return None
+    except Exception as e:
+        print(f"Error extracting content from {url}: {e}")
+        return None
+
+def call_deepseek_chat(prompt, model=config.DEEPSEEK_CHAT_MODEL, system_prompt=None):
+    """Calls the Deepseek Chat API."""
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=1024, # Adjust as needed
+            temperature=0.5, # Adjust for desired creativity/factuality
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Error calling Deepseek Chat API: {e}")
+        # Implement retry logic or better error handling here if needed
+        time.sleep(5) # Basic backoff
+        return None
+
+def get_deepseek_embedding(text, model=config.DEEPSEEK_EMBEDDING_MODEL):
+    """Gets embeddings using the Deepseek API."""
+    # NOTE: As of late 2024, Deepseek might not have a dedicated public embedding API endpoint
+    # easily usable like OpenAI's. This is a placeholder.
+    # If no direct embedding endpoint exists, you might need to:
+    # 1. Use a different embedding model (e.g., sentence-transformers locally).
+    # 2. Check if the Chat API can be prompted to output embeddings (less likely/reliable).
+    # 3. Wait for Deepseek to release an embedding API.
+    # This code assumes a hypothetical `client.embeddings.create` exists.
+    # Replace this with your actual embedding method.
+    print(f"INFO: Attempting to get embedding for text snippet: '{text[:50]}...'")
+    print(f"WARN: Using placeholder embedding logic. Replace with actual Deepseek embedding API call or alternative.")
+
+    # --- Placeholder/Alternative Logic ---
+    # Option A: Use a local model (e.g., sentence-transformers)
+    # from sentence_transformers import SentenceTransformer
+    # model = SentenceTransformer('all-MiniLM-L6-v2') # Example model
+    # return model.encode(text).tolist()
+
+    # Option B: Placeholder - returning random vector (NOT FOR REAL USE)
+    # import random
+    # return [random.random() for _ in range(768)] # Example dimension
+
+    # Option C: Hypothetical Deepseek API call (Adapt if they release one)
+    try:
+         response = client.embeddings.create(
+             model=model, # Use the actual model name from Deepseek docs
+             input=[text] # API likely expects a list of strings
+         )
+         # Access the embedding vector based on the actual API response structure
+         # This structure is hypothetical:
+         if response.data and len(response.data) > 0:
+              return response.data[0].embedding
+         else:
+              print(f"Warning: No embedding returned for text.")
+              return None
+    except AttributeError:
+         print("ERROR: `client.embeddings.create` not found. Deepseek embedding API might not be available or SDK needs update. Using dummy data.")
+         import random
+         return [random.random() for _ in range(768)] # Return dummy data
+    except Exception as e:
+         print(f"Error calling hypothetical Deepseek Embedding API: {e}")
+         return None
+
+
+# --- Core Functions ---
+
+def scrape_articles():
+    """Scrapes articles from configured RSS feeds."""
+    print("\n--- Starting Article Scraping ---")
+    new_articles_count = 0
+    for feed_url in config.RSS_FEEDS:
+        print(f"Fetching feed: {feed_url}")
+        feed = feedparser.parse(feed_url)
+        if feed.bozo:
+            print(f"Warning: Potential issue parsing feed {feed_url}: {feed.bozo_exception}")
+
+        for entry in feed.entries:
+            url = entry.get('link')
+            title = entry.get('title', 'No Title')
+            published_parsed = entry.get('published_parsed')
+            published_date = datetime(*published_parsed[:6]) if published_parsed else datetime.now()
+            feed_source = feed.feed.get('title', feed_url)
+
+            if not url:
+                continue
+
+            # Check if article exists before fetching content
+            conn = database.get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM articles WHERE url = ?", (url,))
+            exists = cursor.fetchone()
+            conn.close()
+
+            if not exists:
+                print(f"Fetching content for: {title} ({url})")
+                raw_content = fetch_article_content(url)
+                if raw_content:
+                    article_id = database.add_article(url, title, published_date, feed_source, raw_content)
+                    if article_id:
+                        new_articles_count += 1
+                else:
+                    print(f"Skipping article due to content fetch/extraction error: {title}")
+                time.sleep(1) # Be polite to servers
+
+    print(f"--- Scraping Finished. Added {new_articles_count} new articles. ---")
+
+
+def process_articles():
+    """Processes unprocessed articles: summarizes and generates embeddings."""
+    print("\n--- Starting Article Processing ---")
+    unprocessed = database.get_unprocessed_articles()
+    processed_count = 0
+    if not unprocessed:
+        print("No new articles to process.")
+        return
+
+    print(f"Found {len(unprocessed)} articles to process.")
+    for article in unprocessed:
+        print(f"Processing article ID: {article['id']} - {article['url'][:50]}...")
+
+        # 1. Summarize using Deepseek Chat
+        summary_prompt = f"Summarize the key points of this news article objectively in 2-4 sentences. Identify the main topics covered.\n\nArticle:\n{article['raw_content'][:4000]}" # Limit context window
+        summary = call_deepseek_chat(summary_prompt)
+
+        if not summary:
+            print(f"Skipping article {article['id']} due to summarization error.")
+            continue
+
+        # 2. Generate Embedding using Deepseek (or alternative)
+        # Use summary for embedding to focus on core topics and save tokens/time
+        embedding = get_deepseek_embedding(summary)
+
+        if not embedding:
+             print(f"Skipping article {article['id']} due to embedding error.")
+             continue # Or store article without embedding if desired
+
+        # 3. Update Database
+        database.update_article_processing(article['id'], summary, embedding)
+        processed_count += 1
+        print(f"Successfully processed article ID: {article['id']}")
+        time.sleep(2) # Avoid hitting API rate limits
+
+    print(f"--- Processing Finished. Processed {processed_count} articles. ---")
+
+
+def generate_brief():
+    """Generates the daily briefing by clustering articles and synthesizing."""
+    print("\n--- Starting Brief Generation ---")
+    articles = database.get_articles_for_briefing(config.BRIEFING_ARTICLE_LOOKBACK_HOURS)
+
+    if not articles or len(articles) < config.MIN_ARTICLES_FOR_BRIEFING:
+        print(f"Not enough recent articles ({len(articles)}) to generate a brief. Min required: {config.MIN_ARTICLES_FOR_BRIEFING}.")
+        return
+
+    print(f"Generating brief from {len(articles)} articles.")
+
+    # Prepare data for clustering
+    article_ids = [a['id'] for a in articles]
+    summaries = [a['processed_content'] for a in articles]
+    embeddings = [json.loads(a['embedding']) for a in articles if a['embedding']] # Load JSON string
+
+    if len(embeddings) != len(articles):
+        print("Warning: Some articles selected for briefing are missing embeddings. Proceeding with available ones.")
+        # Filter articles, summaries, ids to match embeddings
+        valid_indices = [i for i, a in enumerate(articles) if a['embedding']]
+        articles = [articles[i] for i in valid_indices]
+        article_ids = [article_ids[i] for i in valid_indices]
+        summaries = [summaries[i] for i in valid_indices]
+        # embeddings are already filtered
+
+    if len(embeddings) < config.MIN_ARTICLES_FOR_BRIEFING:
+         print(f"Not enough articles ({len(embeddings)}) with embeddings to cluster. Min required: {config.MIN_ARTICLES_FOR_BRIEFING}.")
+         return
+
+    embedding_matrix = np.array(embeddings)
+
+    # Clustering (using KMeans as an example)
+    n_clusters = min(config.N_CLUSTERS, len(embedding_matrix) // 2) # Ensure clusters < samples/2
+    if n_clusters < 2 : # Need at least 2 clusters for KMeans typically
+        print("Not enough articles to form meaningful clusters. Skipping clustering.")
+        # Alternative: Treat all articles as one cluster or generate simple list summary
+        # For now, we'll just exit brief generation
+        return
+
+    print(f"Clustering {len(embedding_matrix)} articles into {n_clusters} clusters...")
+    try:
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10) # n_init='auto' in newer sklearn
+        kmeans.fit(embedding_matrix)
+        labels = kmeans.labels_
+    except Exception as e:
+        print(f"Error during clustering: {e}")
+        return
+
+
+    # Analyze each cluster
+    cluster_analyses = []
+    print("Analyzing clusters...")
+    for i in range(n_clusters):
+        cluster_indices = np.where(labels == i)[0]
+        cluster_summaries = [summaries[idx] for idx in cluster_indices]
+
+        if not cluster_summaries:
+            continue
+
+        print(f"  Analyzing Cluster {i} ({len(cluster_summaries)} articles)")
+
+        # Limit summaries sent to LLM to avoid excessive length/cost
+        MAX_SUMMARIES_PER_CLUSTER = 10
+        analysis_prompt = "These are summaries of potentially related news articles:\n\n"
+        analysis_prompt += "\n\n".join([f"- {s}" for s in cluster_summaries[:MAX_SUMMARIES_PER_CLUSTER]])
+        analysis_prompt += "\n\nWhat is the core event or topic discussed? Summarize the key developments and significance in 3-5 sentences based *only* on the provided text. If the articles seem unrelated, state that."
+
+        cluster_analysis = call_deepseek_chat(analysis_prompt, system_prompt="You are an intelligence analyst identifying key news themes.")
+        if cluster_analysis:
+            # Simple check to filter out potentially "unrelated" clusters if desired
+            if "unrelated" not in cluster_analysis.lower() or len(cluster_summaries) > 2:
+                 cluster_analyses.append({"topic": f"Cluster {i+1}", "analysis": cluster_analysis, "size": len(cluster_summaries)})
+        time.sleep(2) # API rate limiting
+
+    if not cluster_analyses:
+        print("No meaningful clusters found or analyzed.")
+        return
+
+    # Sort clusters by size (number of articles) to prioritize major themes
+    cluster_analyses.sort(key=lambda x: x['size'], reverse=True)
+
+    # Synthesize Final Brief
+    print("Synthesizing final brief...")
+    synthesis_prompt = "You are an AI assistant writing a Presidential-style daily intelligence briefing using Markdown. Synthesize the following analyzed news clusters into a coherent, high-level executive summary. Start with the 2-3 most critical overarching themes globally based *only* on these inputs. Then, provide concise bullet points summarizing key developments within the most significant clusters (roughly 3-5 clusters). Maintain an objective, analytical tone. Avoid speculation.\n\n"
+    synthesis_prompt += "Analyzed News Clusters (Most significant first):\n\n"
+    for i, cluster in enumerate(cluster_analyses[:5]): # Limit to top 5 clusters for final brief
+        synthesis_prompt += f"--- Cluster {i+1} ({cluster['size']} articles) ---\n"
+        synthesis_prompt += f"Analysis: {cluster['analysis']}\n\n"
+
+    final_brief_md = call_deepseek_chat(synthesis_prompt)
+
+    if final_brief_md:
+        # Save the brief
+        database.save_brief(final_brief_md, article_ids) # Save IDs of all articles considered
+        print("--- Brief Generation Finished Successfully ---")
+    else:
+        print("--- Brief Generation Failed: Could not synthesize final brief. ---")
+
+
+# --- Main Execution ---
+if __name__ == "__main__":
+    print(f"Meridian Briefing Run - {datetime.now()}")
+    database.init_db() # Ensure DB exists and tables are created
+    scrape_articles()
+    process_articles()
+    generate_brief()
+    print(f"Run Finished - {datetime.now()}")

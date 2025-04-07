@@ -1,0 +1,11 @@
+# simple-meridian/requirements.txt
+feedparser
+requests
+trafilatura
+scikit-learn
+numpy # Required by scikit-learn
+Flask
+python-dotenv
+deepseek # Official Deepseek Python SDK
+markdown # For rendering Markdown in Flask
+schedule # Optional: if using Python-based scheduling

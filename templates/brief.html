@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Meridian Daily Brief</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Meridian Daily Intelligence Brief</h1>
+        <p class="timestamp">Generated: {{ generation_time }}</p>
+        <hr>
+        <div class="brief-content">
+            {{ brief_content|safe }} {# Render the HTML converted from Markdown #}
+        </div>
+    </div>
+</body>
+</html>

@@ -3,12 +3,22 @@
 # List of RSS feeds to scrape
 # Add more sources relevant to your interests
 RSS_FEEDS = [
-    "http://rss.cnn.com/rss/cnn_world.rss",
-    "https://feeds.bbci.co.uk/news/world/rss.xml",
-    "https://www.aljazeera.com/xml/rss/all.xml",
-    "https://feeds.reuters.com/Reuters/worldNews",
-    "https://www.nytimes.com/svc/collections/v1/publish/https://www.nytimes.com/section/world/rss.xml"
-    # Add more diverse sources (tech, finance, local etc.)
+  "https://techcrunch.com/feed/",
+  "https://www.theverge.com/rss/index.xml",
+  "https://arstechnica.com/feed/",
+  "https://krebsonsecurity.com/feed/",
+  "https://feeds.feedburner.com/TheHackersNews",
+  "https://www.bleepingcomputer.com/feed/",
+  "https://www.tomshardware.com/feeds/all",
+  "https://www.scmp.com/rss/36/feed", # tech
+  "https://www.scmp.com/rss/320663/feed", # china tech
+  "https://www.scmp.com/rss/318220/feed", # startups
+  "https://www.scmp.com/rss/318221/feed", # apps and gaming
+  "https://www.scmp.com/rss/318224/feed", # science and research
+  "https://www.scmp.com/rss/318222/feed", # innovation
+  "https://www.wired.com/feed/category/backchannel/latest/rss",
+  "https://www.wired.com/feed/rss",
+  # Add more diverse sources (tech, finance, local etc.)
 ]
 
 # --- Processing Settings ---
@@ -19,7 +29,7 @@ BRIEFING_ARTICLE_LOOKBACK_HOURS = 24
 # Model for summarization and analysis (check Deepseek docs for latest models)
 DEEPSEEK_CHAT_MODEL = "deepseek-chat"
 # Model for embeddings
-DEEPSEEK_EMBEDDING_MODEL = "deepseek-text-embedding-v1" # Fictional - replace with actual model name if available, otherwise might need separate embedding logic
+EMBEDDING_MODEL = "togethercomputer/m2-bert-80M-32k-retrieval"
 
 # --- Clustering Settings ---
 # Approximate number of clusters to aim for. Fine-tune based on results.

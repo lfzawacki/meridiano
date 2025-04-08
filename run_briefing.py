@@ -10,7 +10,7 @@ import time
 import numpy as np
 from sklearn.cluster import KMeans
 from dotenv import load_dotenv
-from deepseek import Deepseek
+import openai # Bring back OpenAI for Deepseek API
 
 import config
 import database
@@ -18,10 +18,17 @@ import database
 # --- Setup ---
 load_dotenv()
 API_KEY = os.getenv("DEEPSEEK_API_KEY")
+EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY")
+
 if not API_KEY:
     raise ValueError("DEEPSEEK_API_KEY not found in .env file")
 
-client = Deepseek(api_key=API_KEY)
+if not EMBEDDING_API_KEY:
+    raise ValueError("EMBEDDING_API_KEY not found in .env file")
+
+# Use the correct client for Deepseek, not OpenAI
+client = openai.Client(api_key=API_KEY, base_url="https://api.deepseek.com/v1")
+embedding_client = openai.Client(api_key=EMBEDDING_API_KEY, base_url="https://api.together.xyz/v1")
 
 # --- Helper Functions ---
 
@@ -53,58 +60,33 @@ def call_deepseek_chat(prompt, model=config.DEEPSEEK_CHAT_MODEL, system_prompt=N
         response = client.chat.completions.create(
             model=model,
             messages=messages,
-            max_tokens=1024, # Adjust as needed
-            temperature=0.5, # Adjust for desired creativity/factuality
+            max_tokens=2048, # Adjust as needed
+            temperature=0.7, # Adjust for desired creativity/factuality
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"Error calling Deepseek Chat API: {e}")
         # Implement retry logic or better error handling here if needed
-        time.sleep(5) # Basic backoff
+        time.sleep(1) # Basic backoff
         return None
 
-def get_deepseek_embedding(text, model=config.DEEPSEEK_EMBEDDING_MODEL):
-    """Gets embeddings using the Deepseek API."""
-    # NOTE: As of late 2024, Deepseek might not have a dedicated public embedding API endpoint
-    # easily usable like OpenAI's. This is a placeholder.
-    # If no direct embedding endpoint exists, you might need to:
-    # 1. Use a different embedding model (e.g., sentence-transformers locally).
-    # 2. Check if the Chat API can be prompted to output embeddings (less likely/reliable).
-    # 3. Wait for Deepseek to release an embedding API.
-    # This code assumes a hypothetical `client.embeddings.create` exists.
-    # Replace this with your actual embedding method.
+def get_deepseek_embedding(text, model=config.EMBEDDING_MODEL):
+    """Gets embeddings."""
     print(f"INFO: Attempting to get embedding for text snippet: '{text[:50]}...'")
-    print(f"WARN: Using placeholder embedding logic. Replace with actual Deepseek embedding API call or alternative.")
 
-    # --- Placeholder/Alternative Logic ---
-    # Option A: Use a local model (e.g., sentence-transformers)
-    # from sentence_transformers import SentenceTransformer
-    # model = SentenceTransformer('all-MiniLM-L6-v2') # Example model
-    # return model.encode(text).tolist()
-
-    # Option B: Placeholder - returning random vector (NOT FOR REAL USE)
-    # import random
-    # return [random.random() for _ in range(768)] # Example dimension
-
-    # Option C: Hypothetical Deepseek API call (Adapt if they release one)
     try:
-         response = client.embeddings.create(
+         response = embedding_client.embeddings.create(
              model=model, # Use the actual model name from Deepseek docs
              input=[text] # API likely expects a list of strings
          )
          # Access the embedding vector based on the actual API response structure
-         # This structure is hypothetical:
          if response.data and len(response.data) > 0:
               return response.data[0].embedding
          else:
               print(f"Warning: No embedding returned for text.")
               return None
-    except AttributeError:
-         print("ERROR: `client.embeddings.create` not found. Deepseek embedding API might not be available or SDK needs update. Using dummy data.")
-         import random
-         return [random.random() for _ in range(768)] # Return dummy data
     except Exception as e:
-         print(f"Error calling hypothetical Deepseek Embedding API: {e}")
+         print(f"Error calling Embedding API: {e}")
          return None
 
 
@@ -165,7 +147,7 @@ def process_articles():
         print(f"Processing article ID: {article['id']} - {article['url'][:50]}...")
 
         # 1. Summarize using Deepseek Chat
-        summary_prompt = f"Summarize the key points of this news article objectively in 2-4 sentences. Identify the main topics covered.\n\nArticle:\n{article['raw_content'][:4000]}" # Limit context window
+        summary_prompt = f"Summarize the key points of this news article objectively in 2-4 sentences. Identify the main topics covered and include 'Source: [article title](article link)' at the end.\n\nArticle:\n{article['raw_content'][:4000]}" # Limit context window
         summary = call_deepseek_chat(summary_prompt)
 
         if not summary:
@@ -184,7 +166,7 @@ def process_articles():
         database.update_article_processing(article['id'], summary, embedding)
         processed_count += 1
         print(f"Successfully processed article ID: {article['id']}")
-        time.sleep(2) # Avoid hitting API rate limits
+        time.sleep(1) # Avoid hitting API rate limits
 
     print(f"--- Processing Finished. Processed {processed_count} articles. ---")
 
@@ -272,9 +254,9 @@ def generate_brief():
 
     # Synthesize Final Brief
     print("Synthesizing final brief...")
-    synthesis_prompt = "You are an AI assistant writing a Presidential-style daily intelligence briefing using Markdown. Synthesize the following analyzed news clusters into a coherent, high-level executive summary. Start with the 2-3 most critical overarching themes globally based *only* on these inputs. Then, provide concise bullet points summarizing key developments within the most significant clusters (roughly 3-5 clusters). Maintain an objective, analytical tone. Avoid speculation.\n\n"
+    synthesis_prompt = "You are an AI assistant writing a daily intelligence briefing for a tech and politics youtuber using Markdown. Synthesize the following analyzed news clusters into a coherent, high-level executive summary. Start with the 2-3 most critical overarching themes globally based *only* on these inputs. Then, provide concise bullet points summarizing key developments within the most significant clusters (roughly 3-5 clusters) and a paragraph summarizing connections and conclusions between the points. Maintain an objective, analytical tone. Try to include the sources to each information using a numbered reference style using Markdown link syntax. Avoid speculation.\n\n"
     synthesis_prompt += "Analyzed News Clusters (Most significant first):\n\n"
-    for i, cluster in enumerate(cluster_analyses[:5]): # Limit to top 5 clusters for final brief
+    for i, cluster in enumerate(cluster_analyses[:10]): # Limit to top 5 clusters for final brief
         synthesis_prompt += f"--- Cluster {i+1} ({cluster['size']} articles) ---\n"
         synthesis_prompt += f"Analysis: {cluster['analysis']}\n\n"
 

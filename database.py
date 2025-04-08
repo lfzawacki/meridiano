@@ -54,6 +54,39 @@ def init_db():
     conn.close()
     print("Database initialized.")
 
+def get_all_articles(page=1, per_page=config.ARTICLES_PER_PAGE):
+    """
+    Fetches a specific page of articles for the list view, newest first.
+
+    Args:
+        page (int): The page number to retrieve (1-indexed).
+        per_page (int): The number of articles per page.
+
+    Returns:
+        list: A list of article rows (dictionaries) for the requested page.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    offset = (page - 1) * per_page
+    cursor.execute('''
+    SELECT id, title, url, feed_source, published_date
+    FROM articles
+    ORDER BY published_date DESC, fetched_at DESC
+    LIMIT ? OFFSET ?
+    ''', (per_page, offset))
+    articles = cursor.fetchall()
+    conn.close()
+    return articles
+
+def get_total_article_count():
+    """Returns the total number of articles in the database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM articles')
+    count = cursor.fetchone()[0] # fetchone() returns a tuple e.g., (52,)
+    conn.close()
+    return count
+
 def add_article(url, title, published_date, feed_source, raw_content):
     """Adds a new article to the database if the URL is unique."""
     conn = get_db_connection()

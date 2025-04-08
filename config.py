@@ -25,6 +25,8 @@ RSS_FEEDS = [
 # How many hours back to look for articles when generating a brief
 BRIEFING_ARTICLE_LOOKBACK_HOURS = 24
 
+ARTICLES_PER_PAGE = 15
+
 # --- Deepseek Model Settings ---
 # Model for summarization and analysis (check Deepseek docs for latest models)
 DEEPSEEK_CHAT_MODEL = "deepseek-chat"

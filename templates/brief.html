@@ -8,6 +8,10 @@
 </head>
 <body>
     <div class="container">
+        <div class="navigation">
+             <a href="{{ url_for('list_articles') }}">View Stored Articles »</a>
+        </div>
+
         <h1>Meridian Daily Intelligence Brief</h1>
         <p class="timestamp">Generated: {{ generation_time }}</p>
         <hr>

@@ -109,60 +109,76 @@ def get_article_by_id(article_id):
     conn.close()
     return article_data
 
-def get_all_articles(page=1, per_page=config.ARTICLES_PER_PAGE, sort_by='published_date', direction='desc'):
-    """
-    Fetches a page of articles, allowing sorting by specific columns.
+def _build_article_filter_clause(start_date=None, end_date=None):
+    """Helper to build WHERE clauses and params for date filtering."""
+    where_clauses = []
+    params = []
 
-    Args:
-        page (int): Page number (1-indexed).
-        per_page (int): Items per page.
-        sort_by (str): Column name to sort by (must be in allowed list).
-        direction (str): Sort direction ('asc' or 'desc').
+    if start_date:
+        # Assuming start_date is a date object or ISO string 'YYYY-MM-DD'
+        where_clauses.append("date(published_date) >= ?")
+        params.append(str(start_date)) # Use date() function in SQL for comparison
 
-    Returns:
-        list: List of article rows for the requested page and sort order.
-    """
+    if end_date:
+        # Assuming end_date is a date object or ISO string 'YYYY-MM-DD'
+        # Filter includes the entire end_date day
+        where_clauses.append("date(published_date) <= ?")
+        params.append(str(end_date))
+
+    where_string = " AND ".join(where_clauses) if where_clauses else "1=1"
+    return where_string, params
+
+def get_all_articles(page=1, per_page=config.ARTICLES_PER_PAGE,
+                     sort_by='published_date', direction='desc',
+                     start_date=None, end_date=None): # Added date filters
+    """ Fetches a page of articles, allowing sorting and date filtering. """
     conn = get_db_connection()
     cursor = conn.cursor()
     offset = (page - 1) * per_page
 
-    # --- Safe ORDER BY Clause Construction ---
-    allowed_sort_columns = {
-        'published_date': 'published_date',
-        'impact_score': 'impact_score',
-        'fetched_at': 'fetched_at' # Allow sorting by fetch time as fallback/option
-    }
-    # Default sort column if invalid input
+    # Sorting logic (remains the same)
+    allowed_sort_columns = {'published_date': 'published_date', 'impact_score': 'impact_score', 'fetched_at': 'fetched_at'}
     db_sort_column = allowed_sort_columns.get(sort_by, 'published_date')
-
-    # Default direction if invalid input
     db_direction = 'ASC' if direction.lower() == 'asc' else 'DESC'
-
-    # Add a secondary sort key for consistent ordering when primary keys are identical
-    # Use 'id DESC' as a deterministic final tie-breaker
     order_by_clause = f"ORDER BY {db_sort_column} {db_direction}, id DESC"
-    # --- End Safe ORDER BY ---
 
+    # --- Date Filtering ---
+    where_string, date_params = _build_article_filter_clause(start_date, end_date)
+    # --- End Date Filtering ---
 
     sql = f'''
-    SELECT id, title, url, feed_source, published_date, processed_content, impact_score
+    SELECT id, title, url, feed_source, published_date, impact_score, processed_content
     FROM articles
+    WHERE {where_string} -- Added WHERE clause
     {order_by_clause}
     LIMIT ? OFFSET ?
     '''
-    # print(f"DEBUG SQL: {sql}") # Uncomment for debugging sorting queries
 
-    cursor.execute(sql, (per_page, offset))
+    # Combine date params with pagination params
+    final_params = date_params + [per_page, offset]
+
+    # print(f"DEBUG SQL: {sql}")
+    # print(f"DEBUG PARAMS: {final_params}")
+    cursor.execute(sql, final_params)
     articles = cursor.fetchall()
     conn.close()
     return articles
 
-def get_total_article_count():
-    """Returns the total number of articles in the database."""
+def get_total_article_count(start_date=None, end_date=None): # Added date filters
+    """ Returns the total count of articles, optionally filtered by date. """
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM articles')
-    count = cursor.fetchone()[0] # fetchone() returns a tuple e.g., (52,)
+
+    # --- Date Filtering ---
+    where_string, date_params = _build_article_filter_clause(start_date, end_date)
+    # --- End Date Filtering ---
+
+    sql = f'SELECT COUNT(*) FROM articles WHERE {where_string}'
+
+    # print(f"DEBUG COUNT SQL: {sql}")
+    # print(f"DEBUG COUNT PARAMS: {date_params}")
+    cursor.execute(sql, date_params)
+    count = cursor.fetchone()[0]
     conn.close()
     return count
 

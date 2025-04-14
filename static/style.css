@@ -279,6 +279,120 @@ blockquote {
     top: -1px;
 }
 
+.filter-sort-form {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f8f9fa; /* Light background for the form area */
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+}
+
+.filter-controls {
+    display: flex;
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    gap: 15px; /* Space between sections */
+    margin-bottom: 15px; /* Space below filters */
+    align-items: center;
+}
+
+.date-inputs {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* Space between label, input, button */
+    flex-grow: 1; /* Allow date inputs to take available space */
+}
+
+.date-inputs label {
+    font-size: 0.9em;
+    color: #495057;
+}
+
+.date-inputs input[type="date"] {
+    padding: 5px 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.preset-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap; /* Allow buttons to wrap */
+}
+
+/* General Button Styling */
+.btn {
+    display: inline-block;
+    padding: 6px 12px;
+    font-size: 0.9em;
+    font-weight: 400;
+    line-height: 1.5;
+    text-align: center;
+    text-decoration: none;
+    vertical-align: middle;
+    cursor: pointer;
+    user-select: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+}
+
+.btn-filter {
+    color: #fff;
+    background-color: #007bff;
+    border-color: #007bff;
+}
+.btn-filter:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+
+.btn-clear {
+    color: #6c757d;
+    background-color: transparent;
+    border: 1px solid #6c757d;
+}
+.btn-clear:hover {
+    color: #fff;
+    background-color: #6c757d;
+}
+
+.btn-preset {
+    color: #007bff;
+    background-color: #e7f1ff; /* Light blue background */
+    border: 1px solid #b8d6ff;
+}
+.btn-preset:hover {
+    background-color: #cde2ff;
+    border-color: #99c3ff;
+}
+.btn-preset.active {
+    color: #fff;
+    background-color: #007bff;
+    border-color: #007bff;
+    font-weight: bold;
+}
+
+/* Ensure sort controls align well after filters */
+.sort-controls {
+    margin-top: 0; /* Remove top margin if it follows filters directly */
+    border-top: none; /* Remove top border if inside form */
+    padding-top: 0;
+    padding-left: 5px; /* Align slightly */
+}
+
+/* --- End Filter Controls Styling --- */
+
+/* --- Sorting Controls Styling (adjust if needed) --- */
+/* .sort-controls {
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    /* border-bottom: 1px solid #eee; */ /* Remove bottom border if inside form */
+    font-size: 0.9em;
+    color: #6c757d;
+} */
+
+
 /* --- Sorting Controls Styling --- */
 .sort-controls {
     margin-top: 15px;

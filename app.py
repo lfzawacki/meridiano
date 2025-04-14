@@ -3,7 +3,7 @@
 from flask import Flask, render_template, request
 from markupsafe import Markup # Import Markup from markupsafe instead
 import markdown
-from datetime import datetime
+from datetime import datetime, timedelta, date
 import math
 import config
 import json
@@ -53,30 +53,81 @@ def view_brief(brief_id):
 
 @app.route('/articles')
 def list_articles():
-    """Displays a paginated list of stored articles with sorting."""
-    # Pagination parameters
+    """ Displays a paginated list of stored articles with sorting and date filtering. """
+    # --- Pagination ---
     try: page = int(request.args.get('page', 1))
     except ValueError: page = 1
     page = max(1, page)
     per_page = config.ARTICLES_PER_PAGE
 
-    # --- Sorting parameters ---
-    # Get sort parameters from query string, default to published_date desc
+    # --- Sorting ---
     sort_by = request.args.get('sort_by', 'published_date')
     direction = request.args.get('direction', 'desc')
-    # Basic validation (more robust validation happens in database.py)
-    if direction not in ['asc', 'desc']:
-        direction = 'desc'
-    # --- End Sorting parameters ---
+    if direction not in ['asc', 'desc']: direction = 'desc'
 
-    total_articles = database.get_total_article_count()
+    # --- Date Filtering ---
+    start_date_str = request.args.get('start_date', '')
+    end_date_str = request.args.get('end_date', '')
+    preset = request.args.get('preset', '')
 
-    # Fetch articles for the current page using sorting parameters
+    start_date, end_date = None, None # Initialize date objects
+
+    # Calculate dates based on preset if provided
+    if preset:
+        today = date.today()
+        if preset == 'yesterday':
+            start_date = today - timedelta(days=1)
+            end_date = start_date
+        elif preset == 'last_week': # Last 7 days including today
+            start_date = today - timedelta(days=6)
+            end_date = today
+        elif preset == 'last_30d':
+            start_date = today - timedelta(days=29)
+            end_date = today
+        elif preset == 'last_3m': # Approx 90 days
+            start_date = today - timedelta(days=89)
+            end_date = today
+        elif preset == 'last_12m': # Approx 365 days
+            start_date = today - timedelta(days=364)
+            end_date = today
+
+        # Convert calculated dates back to strings for template pre-filling
+        start_date_str = start_date.isoformat() if start_date else ''
+        end_date_str = end_date.isoformat() if end_date else ''
+
+    # If no preset, try parsing manual dates
+    else:
+        try:
+            if start_date_str:
+                start_date = date.fromisoformat(start_date_str)
+        except ValueError:
+            start_date_str = '' # Clear invalid date string
+            start_date = None
+            print(f"Warning: Invalid start_date format '{request.args.get('start_date')}'")
+        try:
+            if end_date_str:
+                end_date = date.fromisoformat(end_date_str)
+        except ValueError:
+            end_date_str = '' # Clear invalid date string
+            end_date = None
+            print(f"Warning: Invalid end_date format '{request.args.get('end_date')}'")
+
+    # --- End Date Filtering ---
+
+    # Fetch total count *with filters applied*
+    total_articles = database.get_total_article_count(
+        start_date=start_date,
+        end_date=end_date
+        )
+
+    # Fetch articles for the current page *with filters and sorting*
     articles_data = database.get_all_articles(
         page=page,
         per_page=per_page,
-        sort_by=sort_by,        # Pass sorting params
-        direction=direction
+        sort_by=sort_by,
+        direction=direction,
+        start_date=start_date, # Pass date objects
+        end_date=end_date
     )
 
     articles_data = [
@@ -84,20 +135,30 @@ def list_articles():
         for article in articles_data
     ]
 
-    # Calculate total pages
+    # Calculate total pages based on filtered count
     if total_articles > 0: total_pages = math.ceil(total_articles / per_page)
     else: total_pages = 0
-    if page > total_pages and total_pages > 0: page = total_pages
+    if page > total_pages and total_pages > 0:
+        # Optional: redirect to last valid page if request goes beyond
+        args = request.args.copy()
+        args['page'] = total_pages
+        # return redirect(url_for('list_articles', **args)) # Redirect approach
+        page = total_pages # Simpler: just set page to last page
+
 
     return render_template('articles.html',
                            articles=articles_data,
                            page=page,
                            total_pages=total_pages,
                            per_page=per_page,
-                           total_articles=total_articles,
-                           # Pass current sort state to template
+                           total_articles=total_articles, # Filtered total
+                           # Pass current sort state
                            current_sort_by=sort_by,
-                           current_direction=direction)
+                           current_direction=direction,
+                           # Pass current date filter state (strings for form values)
+                           current_start_date=start_date_str,
+                           current_end_date=end_date_str,
+                           current_preset=preset)
 
 @app.route('/article/<int:article_id>')
 def view_article(article_id):

@@ -10,7 +10,8 @@ import time
 import numpy as np
 from sklearn.cluster import KMeans
 from dotenv import load_dotenv
-import openai # Bring back OpenAI for Deepseek API
+import openai
+import argparse
 
 import config
 import database
@@ -35,9 +36,20 @@ embedding_client = openai.Client(api_key=EMBEDDING_API_KEY, base_url="https://ap
 def fetch_article_content(url):
     """Fetches and extracts main content from a URL."""
     try:
-        # Use a common user-agent
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-        response = requests.get(url, headers=headers, timeout=15)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0',
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Cache-Control": "max-age=0",
+        }
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
         # Extract main content using trafilatura
         content = trafilatura.extract(response.text, include_comments=False, include_tables=False)
@@ -136,7 +148,7 @@ def scrape_articles():
 def process_articles():
     """Processes unprocessed articles: summarizes and generates embeddings."""
     print("\n--- Starting Article Processing ---")
-    unprocessed = database.get_unprocessed_articles()
+    unprocessed = database.get_unprocessed_articles(1000)
     processed_count = 0
     if not unprocessed:
         print("No new articles to process.")
@@ -147,12 +159,16 @@ def process_articles():
         print(f"Processing article ID: {article['id']} - {article['url'][:50]}...")
 
         # 1. Summarize using Deepseek Chat
-        summary_prompt = f"Summarize the key points of this news article objectively in 2-4 sentences. Identify the main topics covered and include 'Source: [article title](article link)' at the end.\n\nArticle:\n{article['raw_content'][:4000]}" # Limit context window
+        summary_prompt = f"Summarize the key points of this news article objectively in 2-4 sentences. Identify the main topics covered.\n\nArticle:\n{article['raw_content'][:4000]}" # Limit context window
         summary = call_deepseek_chat(summary_prompt)
 
         if not summary:
             print(f"Skipping article {article['id']} due to summarization error.")
             continue
+
+        summary += f"\n\nSource: [{article['title']}]({article['url']})"
+
+        print(f"Article summary is: {summary}")
 
         # 2. Generate Embedding using Deepseek (or alternative)
         # Use summary for embedding to focus on core topics and save tokens/time
@@ -169,6 +185,88 @@ def process_articles():
         time.sleep(1) # Avoid hitting API rate limits
 
     print(f"--- Processing Finished. Processed {processed_count} articles. ---")
+
+def rate_articles():
+    """Rates the impact of processed articles using an LLM."""
+    print("\n--- Starting Article Impact Rating ---")
+    if not client:
+        print("Skipping rating: Deepseek client not initialized.")
+        return
+
+    unrated = database.get_unrated_articles(1000)
+    rated_count = 0
+    if not unrated:
+        print("No new articles to rate.")
+        return
+
+    print(f"Found {len(unrated)} processed articles to rate.")
+    for article in unrated:
+        print(f"Rating article ID: {article['id']}: {article['title']}...")
+        summary = article['processed_content']
+        if not summary:
+            print(f"  Skipping article {article['id']} - no summary found.")
+            continue
+
+        # Define the prompt for impact rating
+#         rating_prompt = f"""Analyze the following article summary and estimate its overall impact. Consider factors like newsworthiness, original reporting, geographic scope (local vs global), number of people affected, severity, and potential long-term consequences. Be strict with the scores, the quality of the estimate is VITAL for our understanding of the global landscape.
+#
+# Rate the impact on a scale of 1 to 10, where:
+# 1-2: Low newsworthiness. Minor, niche, or local interest. Product or show reviews.
+# 3-4: Opinion piece, notable pop culture happening, notable event for a specific region or community.
+# 5-6: Hard hitting jornalism. Significant event with broader regional or moderate international implications.
+# 7-8: Comprehensive jornalistic exposes. Major event with significant international importance or wide-reaching effects.
+# 9-10: Critical global event with severe, widespread, or potentially historic implications.
+
+        rating_prompt = f"""Analyze the following article summary and estimate its overall impact. Consider factors like newsworthiness, originality, geographic scope (local vs global), number of people affected, severity, and potential long-term consequences. Be extremely critical and conservative when assigning scores—higher scores should reflect truly exceptional or rare events.
+
+Rate the impact on a scale of 1 to 10, using these guidelines:
+
+    1-2: Minimal significance. Niche interest or local news with no broader relevance. Example: A review of a local restaurant or a minor product launch.
+
+    3-4: Regionally notable. Pop culture happenings, local events, or community-focused stories. Example: A local mayor’s resignation or a regional festival.
+
+    5-6: Regionally significant or moderately global. Affects multiple communities or industries. Example: A nationwide strike or a major company bankruptcy.
+
+    7-8: Highly significant. Major international relevance, significant disruptions, or wide-reaching implications. Example: A large-scale natural disaster, global health alerts, or a major geopolitical shift.
+
+    9-10: Extraordinary and historic. Global, severe, and long-lasting implications. Example: Declaration of war, groundbreaking global treaties, or critical climate crises.
+
+Key Reminder: Scores of 9-10 should be exceedingly rare and reserved for world-defining events. Always err on the side of a lower score unless the impact is undeniably significant.
+
+Summary:
+"{summary}"
+
+Output ONLY the integer number representing your rating (1-10)."""
+
+        # Call the LLM
+        rating_response = call_deepseek_chat(rating_prompt, model=config.DEEPSEEK_CHAT_MODEL) # Use chat model
+
+        impact_score = None
+        if rating_response:
+            try:
+                # Attempt to extract the integer score
+                score = int(rating_response.strip().split()[0]) # Take first part in case it adds extra text
+                if 1 <= score <= 10:
+                    impact_score = score
+                    print(f"  Article ID {article['id']} rated as: {impact_score}")
+                else:
+                    print(f"  Warning: Rating response '{rating_response}' for article {article['id']} is out of range (1-10).")
+            except (ValueError, IndexError):
+                print(f"  Warning: Could not parse integer rating from response '{rating_response}' for article {article['id']}.")
+        else:
+            print(f"  Warning: No rating response received for article {article['id']}.")
+
+        # Update database even if rating failed (impact_score will be None, prevents re-attempting failed ones immediately)
+        # Or only update if impact_score is not None:
+        if impact_score is not None:
+             database.update_article_rating(article['id'], impact_score)
+             rated_count += 1
+        # else: # Decide if you want to mark failed attempts differently
+             # database.update_article_rating(article['id'], -1) # Example: Mark as failed with -1? Or leave NULL? Leaving NULL for now.
+
+        time.sleep(1) # API rate limiting
+
+    print(f"--- Rating Finished. Rated {rated_count} articles. ---")
 
 
 def generate_brief():
@@ -219,7 +317,6 @@ def generate_brief():
         print(f"Error during clustering: {e}")
         return
 
-
     # Analyze each cluster
     cluster_analyses = []
     print("Analyzing clusters...")
@@ -254,7 +351,7 @@ def generate_brief():
 
     # Synthesize Final Brief
     print("Synthesizing final brief...")
-    synthesis_prompt = "You are an AI assistant writing a daily intelligence briefing for a tech and politics youtuber using Markdown. Synthesize the following analyzed news clusters into a coherent, high-level executive summary. Start with the 2-3 most critical overarching themes globally based *only* on these inputs. Then, provide concise bullet points summarizing key developments within the most significant clusters (roughly 3-5 clusters) and a paragraph summarizing connections and conclusions between the points. Maintain an objective, analytical tone. Try to include the sources to each information using a numbered reference style using Markdown link syntax. Avoid speculation.\n\n"
+    synthesis_prompt = "You are an AI assistant writing a daily intelligence briefing for a tech and politics youtuber using Markdown. The quality of this briefing is vital for the development of the channel. Synthesize the following analyzed news clusters into a coherent, high-level executive summary. Start with the 2-3 most critical overarching themes globally based *only* on these inputs. Then, provide concise bullet points summarizing key developments within the most significant clusters (roughly 7-10 clusters) and a paragraph summarizing connections and conclusions between the points. Maintain an objective, analytical tone. Avoid speculation. Try to include the sources of each statement using a numbered reference style using Markdown link syntax. The link should reference the article title and NOT the news cluster, and link to the article link which is available right after it's summary. It's vital to understand the source of the information for later analysis.\n\n"
     synthesis_prompt += "Analyzed News Clusters (Most significant first):\n\n"
     for i, cluster in enumerate(cluster_analyses[:10]): # Limit to top 5 clusters for final brief
         synthesis_prompt += f"--- Cluster {i+1} ({cluster['size']} articles) ---\n"
@@ -269,12 +366,69 @@ def generate_brief():
     else:
         print("--- Brief Generation Failed: Could not synthesize final brief. ---")
 
-
 # --- Main Execution ---
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Meridian Briefing Runner: Scrapes, processes, and generates briefings.",
+        formatter_class=argparse.RawTextHelpFormatter # Nicer help text formatting
+    )
+    parser.add_argument(
+        '--rate-articles',
+        dest='rate',
+        action='store_true',
+        help='Run only the article impact rating stage (requires processed articles).'
+    )
+    parser.add_argument(
+        '--scrape-articles',
+        dest='scrape',
+        action='store_true',
+        help='Run only the article scraping stage.'
+    )
+    parser.add_argument(
+        '--process-articles',
+        dest='process',
+        action='store_true',
+        help='Run only the article processing (summarize, embed) stage.'
+    )
+    parser.add_argument(
+        '--generate-brief',
+        dest='generate',
+        action='store_true',
+        help='Run only the brief generation (cluster, analyze, synthesize) stage.'
+    )
+    parser.add_argument(
+        '--all',
+        dest='run_all',
+        action='store_true',
+        help='Run all stages sequentially (scrape, process, generate).\nThis is the default behavior if no specific stage argument is given.'
+    )
+
+    args = parser.parse_args()
+
+    # Default to running all if no specific stage OR --all is provided
+    should_run_all = args.run_all or not (args.scrape or args.process or args.generate or args.rate)
+
     print(f"Meridian Briefing Run - {datetime.now()}")
-    database.init_db() # Ensure DB exists and tables are created
-    scrape_articles()
-    process_articles()
-    generate_brief()
-    print(f"Run Finished - {datetime.now()}")
+    database.init_db() # Initialize DB regardless of stage run
+
+    if should_run_all:
+        print("\n>>> Running ALL stages <<<")
+        scrape_articles()
+        process_articles()
+        generate_brief()
+    else:
+        # Run specific stages if their flags are set
+        if args.scrape:
+            print("\n>>> Running ONLY Scrape Articles stage <<<")
+            scrape_articles()
+        if args.rate:
+            print("\n>>> Running ONLY Rate Articles stage <<<")
+            rate_articles()
+        if args.process:
+            print("\n>>> Running ONLY Process Articles stage <<<")
+            process_articles()
+        if args.generate:
+            print("\n>>> Running ONLY Generate Brief stage <<<")
+            generate_brief()
+
+    print(f"\nRun Finished - {datetime.now()}")

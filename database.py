@@ -32,12 +32,12 @@ def init_db():
         embedding TEXT,         -- Store embedding as JSON string
         processed_at DATETIME,
         cluster_id INTEGER       -- Optional: store cluster assignment
+        impact_score INTEGER
     )
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_articles_url ON articles (url)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_articles_processed_at ON articles (processed_at)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_articles_published_date ON articles (published_date)')
-
 
     # Briefs Table
     cursor.execute('''
@@ -50,30 +50,109 @@ def init_db():
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_briefs_generated_at ON briefs (generated_at)')
 
+    try:
+        cursor.execute('ALTER TABLE articles ADD COLUMN impact_score INTEGER')
+        conn.commit()
+        print("Added 'impact_score' column to articles table.")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e):
+            pass # Column already exists, ignore
+        else:
+            raise e # Raise other operational errors
+
     conn.commit()
     conn.close()
     print("Database initialized.")
 
-def get_all_articles(page=1, per_page=config.ARTICLES_PER_PAGE):
+def get_unrated_articles(limit=50):
+    """Gets processed articles that haven't been rated yet."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Select articles that have processed_content but lack an impact_score
+    cursor.execute('''
+    SELECT id, title, processed_content FROM articles
+    WHERE processed_content IS NOT NULL AND processed_content != ''
+      AND processed_at IS NOT NULL
+      AND impact_score IS NULL
+    ORDER BY processed_at DESC
+    LIMIT ?
+    ''', (limit,))
+    articles = cursor.fetchall()
+    conn.close()
+    return articles
+
+def update_article_rating(article_id, impact_score):
+    """Updates an article with its impact score."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+    UPDATE articles
+    SET impact_score = ?
+    WHERE id = ?
+    ''', (impact_score, article_id))
+    conn.commit()
+    conn.close()
+
+def get_article_by_id(article_id):
+    """Retrieves all data for a specific article by its ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Select all relevant columns you might want to display
+    cursor.execute('''
+    SELECT id, url, title, published_date, feed_source, fetched_at,
+           raw_content, processed_content, embedding, processed_at, cluster_id,
+           impact_score
+    FROM articles
+    WHERE id = ?
+    ''', (article_id,))
+    article_data = cursor.fetchone() # Use fetchone as ID is unique
+    conn.close()
+    return article_data
+
+def get_all_articles(page=1, per_page=config.ARTICLES_PER_PAGE, sort_by='published_date', direction='desc'):
     """
-    Fetches a specific page of articles for the list view, newest first.
+    Fetches a page of articles, allowing sorting by specific columns.
 
     Args:
-        page (int): The page number to retrieve (1-indexed).
-        per_page (int): The number of articles per page.
+        page (int): Page number (1-indexed).
+        per_page (int): Items per page.
+        sort_by (str): Column name to sort by (must be in allowed list).
+        direction (str): Sort direction ('asc' or 'desc').
 
     Returns:
-        list: A list of article rows (dictionaries) for the requested page.
+        list: List of article rows for the requested page and sort order.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
     offset = (page - 1) * per_page
-    cursor.execute('''
-    SELECT id, title, url, feed_source, published_date
+
+    # --- Safe ORDER BY Clause Construction ---
+    allowed_sort_columns = {
+        'published_date': 'published_date',
+        'impact_score': 'impact_score',
+        'fetched_at': 'fetched_at' # Allow sorting by fetch time as fallback/option
+    }
+    # Default sort column if invalid input
+    db_sort_column = allowed_sort_columns.get(sort_by, 'published_date')
+
+    # Default direction if invalid input
+    db_direction = 'ASC' if direction.lower() == 'asc' else 'DESC'
+
+    # Add a secondary sort key for consistent ordering when primary keys are identical
+    # Use 'id DESC' as a deterministic final tie-breaker
+    order_by_clause = f"ORDER BY {db_sort_column} {db_direction}, id DESC"
+    # --- End Safe ORDER BY ---
+
+
+    sql = f'''
+    SELECT id, title, url, feed_source, published_date, processed_content, impact_score
     FROM articles
-    ORDER BY published_date DESC, fetched_at DESC
+    {order_by_clause}
     LIMIT ? OFFSET ?
-    ''', (per_page, offset))
+    '''
+    # print(f"DEBUG SQL: {sql}") # Uncomment for debugging sorting queries
+
+    cursor.execute(sql, (per_page, offset))
     articles = cursor.fetchall()
     conn.close()
     return articles
@@ -110,9 +189,9 @@ def get_unprocessed_articles(limit=50):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-    SELECT id, url, raw_content FROM articles
+    SELECT id, title, url, raw_content FROM articles
     WHERE processed_at IS NULL AND raw_content IS NOT NULL AND raw_content != ''
-    ORDER BY fetched_at ASC
+    ORDER BY fetched_at DESC
     LIMIT ?
     ''', (limit,))
     articles = cursor.fetchall()
@@ -129,6 +208,7 @@ def update_article_processing(article_id, processed_content, embedding):
     SET processed_content = ?, embedding = ?, processed_at = ?
     WHERE id = ?
     ''', (processed_content, embedding_json, datetime.now(), article_id))
+
     conn.commit()
     conn.close()
 
@@ -161,15 +241,26 @@ def save_brief(brief_markdown, contributing_article_ids):
     print(f"Saved brief with ID: {last_id}")
     return last_id
 
-def get_latest_brief():
-    """Retrieves the most recently generated brief."""
+def get_all_briefs_metadata():
+    """Retrieves ID and generation timestamp for all briefs, newest first."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-    SELECT brief_markdown, generated_at FROM briefs
+    SELECT id, generated_at FROM briefs
     ORDER BY generated_at DESC
-    LIMIT 1
     ''')
-    brief = cursor.fetchone()
+    briefs_metadata = cursor.fetchall()
     conn.close()
-    return brief
+    return briefs_metadata
+
+def get_brief_by_id(brief_id):
+    """Retrieves a specific brief's content and timestamp by its ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+    SELECT id, brief_markdown, generated_at FROM briefs
+    WHERE id = ?
+    ''', (brief_id,))
+    brief_data = cursor.fetchone()
+    conn.close()
+    return brief_data

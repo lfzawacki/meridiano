@@ -6,6 +6,7 @@ import markdown
 from datetime import datetime
 import math
 import config
+import json
 
 import database # Import our database functions
 
@@ -29,65 +30,101 @@ app.jinja_env.filters['datetimeformat'] = format_datetime
 
 @app.route('/')
 def index():
-    """Displays the latest briefing."""
-    brief_data = database.get_latest_brief()
-    brief_content_html = "<h2>No Briefing Available Yet</h2><p>Please run the `run_briefing.py` script first.</p>"
-    generation_time = "N/A"
+    """Displays a list of all generated briefings."""
+    briefs_metadata = database.get_all_briefs_metadata()
+    return render_template('index.html', # Render the new index template
+                           briefs=briefs_metadata)
 
-    if brief_data:
-        # Convert Markdown to HTML
-        # Use 'fenced_code' extension for better code block formatting if needed
-        brief_content_html = Markup(markdown.markdown(brief_data['brief_markdown'], extensions=['fenced_code']))
-        # Format the generation time
-        gen_time_dt = brief_data['generated_at']
-        if isinstance(gen_time_dt, str): # SQLite might return string
-            try:
-                gen_time_dt = datetime.fromisoformat(gen_time_dt)
-            except ValueError: # Handle potential format issues
-                 gen_time_dt = None
+@app.route('/brief/<int:brief_id>')
+def view_brief(brief_id):
+    """Displays a single specific briefing."""
+    brief_data = database.get_brief_by_id(brief_id)
 
-        if gen_time_dt:
-             generation_time = gen_time_dt.strftime('%Y-%m-%d %H:%M:%S UTC')
-        else:
-             generation_time = str(brief_data['generated_at']) # Fallback
+    if brief_data is None:
+        abort(404) # Return a 404 error if brief not found
 
-    return render_template('brief.html',
+    brief_content_html = Markup(markdown.markdown(brief_data['brief_markdown'], extensions=['fenced_code']))
+    generation_time = format_datetime(brief_data['generated_at'], '%Y-%m-%d %H:%M:%S UTC')
+
+    return render_template('brief.html', # Use a new template for viewing
+                           brief_id=brief_data['id'],
                            brief_content=brief_content_html,
                            generation_time=generation_time)
 
 @app.route('/articles')
 def list_articles():
-    """Displays a paginated list of stored articles."""
-    # Get page number from query parameter, default to 1, ensure it's an integer >= 1
-    try:
-        page = int(request.args.get('page', 1))
-    except ValueError:
-        page = 1
-    page = max(1, page) # Ensure page is at least 1
-
+    """Displays a paginated list of stored articles with sorting."""
+    # Pagination parameters
+    try: page = int(request.args.get('page', 1))
+    except ValueError: page = 1
+    page = max(1, page)
     per_page = config.ARTICLES_PER_PAGE
+
+    # --- Sorting parameters ---
+    # Get sort parameters from query string, default to published_date desc
+    sort_by = request.args.get('sort_by', 'published_date')
+    direction = request.args.get('direction', 'desc')
+    # Basic validation (more robust validation happens in database.py)
+    if direction not in ['asc', 'desc']:
+        direction = 'desc'
+    # --- End Sorting parameters ---
+
     total_articles = database.get_total_article_count()
 
-    # Fetch articles for the current page
-    articles_data = database.get_all_articles(page=page, per_page=per_page)
+    # Fetch articles for the current page using sorting parameters
+    articles_data = database.get_all_articles(
+        page=page,
+        per_page=per_page,
+        sort_by=sort_by,        # Pass sorting params
+        direction=direction
+    )
+
+    articles_data = [
+        {**article, 'processed_content_html': Markup(markdown.markdown(article['processed_content'] or '',  extensions=['fenced_code']))}
+        for article in articles_data
+    ]
 
     # Calculate total pages
-    if total_articles > 0:
-        total_pages = math.ceil(total_articles / per_page)
-    else:
-        total_pages = 0 # Or 1, depending on desired behavior for zero items
-
-    # Ensure page does not exceed total_pages if navigating beyond last page manually
-    if page > total_pages and total_pages > 0:
-         page = total_pages
-         # Optional: Could redirect to the last page instead of just showing empty
+    if total_articles > 0: total_pages = math.ceil(total_articles / per_page)
+    else: total_pages = 0
+    if page > total_pages and total_pages > 0: page = total_pages
 
     return render_template('articles.html',
                            articles=articles_data,
                            page=page,
                            total_pages=total_pages,
                            per_page=per_page,
-                           total_articles=total_articles)
+                           total_articles=total_articles,
+                           # Pass current sort state to template
+                           current_sort_by=sort_by,
+                           current_direction=direction)
+
+@app.route('/article/<int:article_id>')
+def view_article(article_id):
+    """Displays details for a single specific article."""
+    article_data = database.get_article_by_id(article_id)
+
+    if article_data is None:
+        abort(404) # Return a 404 error if article not found
+
+    # Basic check if embedding data exists (without showing the vector)
+    embedding_status = "Not Generated"
+    if article_data['embedding']:
+        try:
+            # Try loading to see if it's valid JSON and not empty
+            embed_data = json.loads(article_data['embedding'])
+            if embed_data:
+                 # You could potentially calculate dimension here if needed: len(embed_data)
+                 embedding_status = "Present"
+            else:
+                 embedding_status = "Present (Empty)"
+        except (json.JSONDecodeError, TypeError):
+            embedding_status = "Present (Invalid Format)"
+
+
+    return render_template('view_article.html', # Use a new template
+                           article=article_data,
+                           embedding_status=embedding_status)
 
 if __name__ == '__main__':
     database.init_db()

@@ -198,3 +198,120 @@ blockquote {
     color: #495057;
     font-weight: 500;
 }
+
+/* article page */
+.article-details dt {
+    font-weight: bold;
+    margin-top: 1em;
+    color: #343a40;
+}
+
+.article-details dd {
+    margin-left: 0; /* Reset browser default indent */
+    margin-bottom: 0.8em;
+    color: #495057;
+    padding-left: 1em; /* Add our own indent */
+    border-left: 3px solid #e9ecef; /* Subtle left border */
+}
+
+.article-details dd a { /* Style link within details */
+    color: #0056b3;
+    text-decoration: none;
+}
+.article-details dd a:hover {
+    text-decoration: underline;
+}
+
+.content-block { /* Common style for summary/raw */
+    background-color: #f8f9fa;
+    padding: 10px 15px;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+    font-size: 0.95em;
+    line-height: 1.5;
+    margin-top: 5px; /* Space from the <dt> */
+}
+
+.content-block.raw-content pre {
+    white-space: pre-wrap;       /* CSS3 */
+    white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+    white-space: -pre-wrap;      /* Opera 4-6 */
+    white-space: -o-pre-wrap;    /* Opera 7 */
+    word-wrap: break-word;       /* Internet Explorer 5.5+ */
+    max-height: 400px; /* Limit height */
+    overflow-y: auto; /* Add scrollbar if needed */
+    margin: 0; /* Reset default pre margin */
+    background-color: transparent; /* Inherit from parent */
+    padding: 0; /* Reset default pre padding */
+    border: none; /* Reset default pre border */
+    font-size: 0.9em; /* Slightly smaller for dense text */
+}
+
+/* --- Impact Score Styling --- */
+.impact-score {
+    display: inline-block; /* Changed from inline to inline-block for padding/margin */
+    padding: 3px 8px;
+    font-size: 0.8em;
+    font-weight: bold;
+    border-radius: 10px; /* Rounded corners */
+    color: #fff; /* Default white text */
+    margin-right: 8px; /* Space between badge and title */
+    min-width: 1.5em; /* Ensure single digits have decent width */
+    text-align: center;
+    vertical-align: middle; /* Align better with text */
+    line-height: 1.2; /* Adjust line height for padding */
+}
+
+/* Default / Unknown */
+.impact-score.score-unknown { background-color: #adb5bd; color: #fff;} /* Grey */
+
+/* Color Scale (Example - adjust colors as desired) */
+.impact-score.score-1, .impact-score.score-2 { background-color: #28a745; } /* Green */
+.impact-score.score-3, .impact-score.score-4 { background-color: #198754; } /* Darker Green */
+.impact-score.score-5, .impact-score.score-6 { background-color: #ffc107; color: #333; } /* Yellow (darker text) */
+.impact-score.score-7, .impact-score.score-8 { background-color: #fd7e14; } /* Orange */
+.impact-score.score-9, .impact-score.score-10 { background-color: #dc3545; } /* Red */
+
+/* Adjust positioning slightly on the article list item */
+.article-item .impact-score {
+    /* Optional: Tweak alignment if needed */
+    position: relative;
+    top: -1px;
+}
+
+/* --- Sorting Controls Styling --- */
+.sort-controls {
+    margin-top: 15px;
+    margin-bottom: 20px;
+    padding: 10px 0;
+    border-top: 1px solid #eee;
+    border-bottom: 1px solid #eee;
+    font-size: 0.9em;
+    color: #6c757d; /* Gray text for "Sort by:" */
+}
+
+.sort-link {
+    text-decoration: none;
+    color: #007bff; /* Link blue */
+    margin-left: 15px;
+    padding: 3px 5px;
+    border-radius: 3px;
+}
+
+.sort-link:hover {
+    background-color: #e9ecef;
+    text-decoration: none;
+}
+
+.sort-link.active {
+    font-weight: bold;
+    color: #0056b3; /* Darker blue for active */
+    background-color: #d6eaff; /* Light blue background for active */
+}
+
+.sort-indicator {
+    display: inline-block;
+    margin-left: 4px;
+    font-size: 0.8em; /* Make indicator slightly smaller */
+    color: #343a40; /* Dark color for indicator */
+}

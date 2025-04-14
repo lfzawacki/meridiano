@@ -13,6 +13,10 @@ from dotenv import load_dotenv
 import openai
 import argparse
 
+from bs4 import BeautifulSoup
+
+from urllib.parse import urljoin
+
 import config
 import database
 
@@ -33,8 +37,16 @@ embedding_client = openai.Client(api_key=EMBEDDING_API_KEY, base_url="https://ap
 
 # --- Helper Functions ---
 
-def fetch_article_content(url):
-    """Fetches and extracts main content from a URL."""
+def fetch_article_content_and_og_image(url):
+    """
+    Fetches HTML, extracts main content using Trafilatura,
+    and extracts the og:image URL using BeautifulSoup.
+
+    Returns:
+        dict: {'content': str|None, 'og_image': str|None}
+    """
+    content = None
+    og_image = None
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0',
@@ -48,18 +60,33 @@ def fetch_article_content(url):
             "Sec-Fetch-Site": "none",
             "Sec-Fetch-User": "?1",
             "Cache-Control": "max-age=0",
+            "referer": "https://www.google.com"
         }
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
-        # Extract main content using trafilatura
-        content = trafilatura.extract(response.text, include_comments=False, include_tables=False)
-        return content
+        response = requests.get(url, headers=headers, timeout=20) # Increased timeout slightly
+        response.raise_for_status()
+        html_content = response.text
+
+        # 1. Extract text content
+        content = trafilatura.extract(html_content, include_comments=False, include_tables=False)
+
+        # 2. Extract og:image using BeautifulSoup
+        soup = BeautifulSoup(html_content, 'lxml') # Use lxml or html.parser
+        og_image_tag = soup.find('meta', property='og:image')
+        if og_image_tag and og_image_tag.get('content'):
+            og_image = og_image_tag['content']
+            # Optionally resolve relative URLs - less common for og:image but possible
+            og_image = urljoin(url, og_image)
+
+        return {'content': content, 'og_image': og_image}
+
     except requests.exceptions.RequestException as e:
         print(f"Error fetching {url}: {e}")
-        return None
+        return {'content': None, 'og_image': None}
     except Exception as e:
-        print(f"Error extracting content from {url}: {e}")
-        return None
+        # Catch potential BeautifulSoup errors or others
+        print(f"Error processing content/og:image from {url}: {e}")
+        # Still return content if it was extracted before the error
+        return {'content': content, 'og_image': None}
 
 def call_deepseek_chat(prompt, model=config.DEEPSEEK_CHAT_MODEL, system_prompt=None):
     """Calls the Deepseek Chat API."""
@@ -105,14 +132,13 @@ def get_deepseek_embedding(text, model=config.EMBEDDING_MODEL):
 # --- Core Functions ---
 
 def scrape_articles():
-    """Scrapes articles from configured RSS feeds."""
+    """Scrapes articles, extracts image from RSS or OG tag, saves to DB."""
     print("\n--- Starting Article Scraping ---")
     new_articles_count = 0
     for feed_url in config.RSS_FEEDS:
         print(f"Fetching feed: {feed_url}")
         feed = feedparser.parse(feed_url)
-        if feed.bozo:
-            print(f"Warning: Potential issue parsing feed {feed_url}: {feed.bozo_exception}")
+        if feed.bozo: print(f"Warning: Potential issue parsing feed {feed_url}: {feed.bozo_exception}")
 
         for entry in feed.entries:
             url = entry.get('link')
@@ -121,26 +147,69 @@ def scrape_articles():
             published_date = datetime(*published_parsed[:6]) if published_parsed else datetime.now()
             feed_source = feed.feed.get('title', feed_url)
 
-            if not url:
-                continue
+            if not url: continue
 
-            # Check if article exists before fetching content
+            # --- Check if article exists ---
             conn = database.get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT id FROM articles WHERE url = ?", (url,))
             exists = cursor.fetchone()
             conn.close()
+            if exists: continue
+            # --- End Check ---
 
-            if not exists:
-                print(f"Fetching content for: {title} ({url})")
-                raw_content = fetch_article_content(url)
-                if raw_content:
-                    article_id = database.add_article(url, title, published_date, feed_source, raw_content)
-                    if article_id:
-                        new_articles_count += 1
-                else:
-                    print(f"Skipping article due to content fetch/extraction error: {title}")
-                time.sleep(1) # Be polite to servers
+            print(f"Processing new entry: {title} ({url})")
+
+            # --- 1. Try getting image from RSS feed ---
+            rss_image_url = None
+            # Check enclosures
+            if 'enclosures' in entry:
+                for enc in entry.enclosures:
+                    if enc.get('type', '').startswith('image/'):
+                        rss_image_url = enc.get('href')
+                        break # Take the first image enclosure
+            # Check media_content if no enclosure image found
+            if not rss_image_url and 'media_content' in entry:
+                 for media in entry.media_content:
+                     if media.get('medium') == 'image' and media.get('url'):
+                          rss_image_url = media.get('url')
+                          break # Take the first media image
+                     elif media.get('type', '').startswith('image/') and media.get('url'):
+                          rss_image_url = media.get('url')
+                          break
+            # Check simple image tag (less common)
+            if not rss_image_url and 'image' in entry and isinstance(entry.image, dict) and entry.image.get('url'):
+                rss_image_url = entry.image.get('url')
+
+            if rss_image_url:
+                print(f"  Found image in RSS: {rss_image_url[:60]}...")
+            # --- End RSS Image Check ---
+
+            # --- 2. Fetch Article Content & OG Image ---
+            print(f"  Fetching article content and OG image...")
+            fetch_result = fetch_article_content_and_og_image(url)
+            raw_content = fetch_result['content']
+            og_image_url = fetch_result['og_image']
+            # --- End Fetch ---
+
+            if not raw_content:
+                print(f"  Skipping article, failed to extract main content: {title}")
+                continue
+
+            # --- 3. Determine Final Image URL and Save ---
+            final_image_url = rss_image_url if rss_image_url else og_image_url
+            if final_image_url:
+                 print(f"  Using image URL: {final_image_url[:60]}...")
+            else:
+                 print("  No image found in RSS or OG tags.")
+
+            article_id = database.add_article(
+                url, title, published_date, feed_source, raw_content, final_image_url # Pass image URL
+            )
+            if article_id: new_articles_count += 1
+            # --- End Save ---
+
+            time.sleep(0.5) # Be polite
 
     print(f"--- Scraping Finished. Added {new_articles_count} new articles. ---")
 
@@ -408,13 +477,14 @@ if __name__ == "__main__":
     # Default to running all if no specific stage OR --all is provided
     should_run_all = args.run_all or not (args.scrape or args.process or args.generate or args.rate)
 
-    print(f"Meridian Briefing Run - {datetime.now()}")
+    print(f"Briefing Run - {datetime.now()}")
     database.init_db() # Initialize DB regardless of stage run
 
     if should_run_all:
         print("\n>>> Running ALL stages <<<")
         scrape_articles()
         process_articles()
+        rate_articles()
         generate_brief()
     else:
         # Run specific stages if their flags are set

@@ -33,6 +33,7 @@ def init_db():
         processed_at DATETIME,
         cluster_id INTEGER       -- Optional: store cluster assignment
         impact_score INTEGER
+        image_url TEXT
     )
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_articles_url ON articles (url)')
@@ -59,6 +60,14 @@ def init_db():
             pass # Column already exists, ignore
         else:
             raise e # Raise other operational errors
+
+    try:
+        cursor.execute('ALTER TABLE articles ADD COLUMN image_url TEXT')
+        conn.commit()
+        print("Added 'image_url' column to articles table.")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e): pass # Column already exists
+        else: raise e
 
     conn.commit()
     conn.close()
@@ -97,15 +106,14 @@ def get_article_by_id(article_id):
     """Retrieves all data for a specific article by its ID."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Select all relevant columns you might want to display
     cursor.execute('''
     SELECT id, url, title, published_date, feed_source, fetched_at,
            raw_content, processed_content, embedding, processed_at, cluster_id,
-           impact_score
+           impact_score, image_url -- Added image_url
     FROM articles
     WHERE id = ?
     ''', (article_id,))
-    article_data = cursor.fetchone() # Use fetchone as ID is unique
+    article_data = cursor.fetchone()
     conn.close()
     return article_data
 
@@ -135,30 +143,21 @@ def get_all_articles(page=1, per_page=config.ARTICLES_PER_PAGE,
     conn = get_db_connection()
     cursor = conn.cursor()
     offset = (page - 1) * per_page
-
-    # Sorting logic (remains the same)
     allowed_sort_columns = {'published_date': 'published_date', 'impact_score': 'impact_score', 'fetched_at': 'fetched_at'}
     db_sort_column = allowed_sort_columns.get(sort_by, 'published_date')
     db_direction = 'ASC' if direction.lower() == 'asc' else 'DESC'
     order_by_clause = f"ORDER BY {db_sort_column} {db_direction}, id DESC"
-
-    # --- Date Filtering ---
     where_string, date_params = _build_article_filter_clause(start_date, end_date)
-    # --- End Date Filtering ---
 
     sql = f'''
-    SELECT id, title, url, feed_source, published_date, impact_score, processed_content
+    SELECT id, title, url, feed_source, published_date, impact_score,
+           processed_content, image_url
     FROM articles
-    WHERE {where_string} -- Added WHERE clause
+    WHERE {where_string}
     {order_by_clause}
     LIMIT ? OFFSET ?
     '''
-
-    # Combine date params with pagination params
     final_params = date_params + [per_page, offset]
-
-    # print(f"DEBUG SQL: {sql}")
-    # print(f"DEBUG PARAMS: {final_params}")
     cursor.execute(sql, final_params)
     articles = cursor.fetchall()
     conn.close()
@@ -182,21 +181,20 @@ def get_total_article_count(start_date=None, end_date=None): # Added date filter
     conn.close()
     return count
 
-def add_article(url, title, published_date, feed_source, raw_content):
-    """Adds a new article to the database if the URL is unique."""
+def add_article(url, title, published_date, feed_source, raw_content, image_url=None): # Added image_url param
+    """Adds a new article with optional image URL."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute('''
-        INSERT INTO articles (url, title, published_date, feed_source, raw_content, fetched_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ''', (url, title, published_date, feed_source, raw_content, datetime.now()))
+        INSERT INTO articles (url, title, published_date, feed_source, raw_content, fetched_at, image_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (url, title, published_date, feed_source, raw_content, datetime.now(), image_url)) # Added image_url
         conn.commit()
         print(f"Added article: {title}")
         return cursor.lastrowid
     except sqlite3.IntegrityError:
-        # print(f"Article already exists: {url}")
-        return None # Indicate article already exists
+        return None
     finally:
         conn.close()
 

@@ -9,3 +9,5 @@ python-dotenv
 markdown # For rendering Markdown in Flask
 schedule # Optional: if using Python-based scheduling
 openai # Add openai to requirements
+beautifulsoup4
+lxml 

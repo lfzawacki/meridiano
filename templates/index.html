@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Meridian Briefings</title> {# Updated Title #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="navigation">
+             <a href="{{ url_for('list_articles') }}">View Stored Articles »</a>
+        </div>
+
+        <h1>Generated Briefings</h1> {# Updated Heading #}
+
+        <div class="profile-filter">
+            Filter by Profile:
+            <a href="{{ url_for('index') }}"
+               class="profile-link {{ 'active' if not current_feed_profile else '' }}">All</a>
+            {% for profile in available_profiles %}
+                <a href="{{ url_for('index', feed_profile=profile) }}"
+                   class="profile-link {{ 'active' if current_feed_profile == profile else '' }}">
+                    {{ profile }}
+                </a>
+            {% endfor %}
+        </div>
+
+        {# List of Briefings #}
+        {% if briefs %}
+            <ul class="brief-list">
+                {% for brief in briefs %}
+                <li class="brief-item">
+                    <a href="{{ url_for('view_brief', brief_id=brief['id']) }}" class="brief-link">
+                        Briefing from {{ brief['generated_at'] | datetimeformat('%Y-%m-%d %H:%M') }}
+                    </a>
+                    <span class="profile-badge list-badge">{{ brief['feed_profile'] }}</span>
+                    <span class="brief-meta"> (ID: {{ brief['id'] }})</span> {# Optional: Show ID #}
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No briefings have been generated yet. Run <code>python run_briefing.py</code>.</p>
+        {% endif %}
+
+    </div>
+</body>
+</html>

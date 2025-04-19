@@ -1,13 +1,13 @@
 # simple-meridian/app.py
 
 from flask import Flask, render_template, request
-from markupsafe import Markup # Import Markup from markupsafe instead
+from markupsafe import Markup
 import markdown
 from datetime import datetime, timedelta, date
 import math
-import config
 import json
 
+import config_base as config # Use base config for app settings
 import database # Import our database functions
 
 app = Flask(__name__)
@@ -30,10 +30,18 @@ app.jinja_env.filters['datetimeformat'] = format_datetime
 
 @app.route('/')
 def index():
-    """Displays a list of all generated briefings."""
-    briefs_metadata = database.get_all_briefs_metadata()
-    return render_template('index.html', # Render the new index template
-                           briefs=briefs_metadata)
+    """Displays a list of briefings, filterable by feed profile."""
+    current_feed_profile = request.args.get('feed_profile', '') # Get filter, empty means 'All'
+    briefs_metadata = database.get_all_briefs_metadata(
+        feed_profile=current_feed_profile if current_feed_profile else None # Pass None for 'All'
+        )
+    # Get profiles for dropdown
+    available_profiles = database.get_distinct_feed_profiles(table='briefs')
+
+    return render_template('index.html',
+                           briefs=briefs_metadata,
+                           available_profiles=available_profiles,
+                           current_feed_profile=current_feed_profile)
 
 @app.route('/brief/<int:brief_id>')
 def view_brief(brief_id):
@@ -58,7 +66,7 @@ def list_articles():
     try: page = int(request.args.get('page', 1))
     except ValueError: page = 1
     page = max(1, page)
-    per_page = config.ARTICLES_PER_PAGE
+    per_page = getattr(config, 'ARTICLES_PER_PAGE', 25)
 
     # --- Sorting ---
     sort_by = request.args.get('sort_by', 'published_date')
@@ -114,20 +122,20 @@ def list_articles():
 
     # --- End Date Filtering ---
 
-    # Fetch total count *with filters applied*
+    current_feed_profile = request.args.get('feed_profile', '') # Empty means 'All'
+
+    # Fetch total count with ALL filters
     total_articles = database.get_total_article_count(
         start_date=start_date,
-        end_date=end_date
+        end_date=end_date,
+        feed_profile=current_feed_profile if current_feed_profile else None # Pass None for 'All'
         )
 
-    # Fetch articles for the current page *with filters and sorting*
+    # Fetch articles with ALL filters and sorting
     articles_data = database.get_all_articles(
-        page=page,
-        per_page=per_page,
-        sort_by=sort_by,
-        direction=direction,
-        start_date=start_date, # Pass date objects
-        end_date=end_date
+        page=page, per_page=per_page, sort_by=sort_by, direction=direction,
+        start_date=start_date, end_date=end_date,
+        feed_profile=current_feed_profile if current_feed_profile else None # Pass None for 'All'
     )
 
     articles_data = [
@@ -145,20 +153,19 @@ def list_articles():
         # return redirect(url_for('list_articles', **args)) # Redirect approach
         page = total_pages # Simpler: just set page to last page
 
+    # Get profiles for dropdown
+    available_profiles = database.get_distinct_feed_profiles(table='articles')
 
     return render_template('articles.html',
                            articles=articles_data,
-                           page=page,
-                           total_pages=total_pages,
-                           per_page=per_page,
+                           page=page, total_pages=total_pages, per_page=per_page,
                            total_articles=total_articles, # Filtered total
-                           # Pass current sort state
-                           current_sort_by=sort_by,
-                           current_direction=direction,
-                           # Pass current date filter state (strings for form values)
-                           current_start_date=start_date_str,
-                           current_end_date=end_date_str,
-                           current_preset=preset)
+                           current_sort_by=sort_by, current_direction=direction,
+                           current_start_date=start_date_str, current_end_date=end_date_str,
+                           current_preset=preset,
+                           # Feed profile state
+                           available_profiles=available_profiles,
+                           current_feed_profile=current_feed_profile)
 
 @app.route('/article/<int:article_id>')
 def view_article(article_id):

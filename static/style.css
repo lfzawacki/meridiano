@@ -369,18 +369,30 @@ blockquote {
 }
 
 .filter-sort-form {
+    display: flex;
+    flex-direction: column; /* Stack sections vertically */
+    gap: 15px; /* Space between sections */
     margin-bottom: 20px;
     padding: 15px;
-    background-color: #f8f9fa; /* Light background for the form area */
+    background-color: #f8f9fa;
     border: 1px solid #dee2e6;
     border-radius: 5px;
+}
+
+.form-section {
+    /* Base styles for sections within the form if needed */
+    padding-bottom: 10px;
+    border-bottom: 1px dotted #ced4da; /* Dotted separator */
+}
+.form-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
 }
 
 .filter-controls {
     display: flex;
     flex-wrap: wrap; /* Allow wrapping on smaller screens */
     gap: 15px; /* Space between sections */
-    margin-bottom: 15px; /* Space below filters */
     align-items: center;
 }
 
@@ -462,14 +474,6 @@ blockquote {
     font-weight: bold;
 }
 
-/* Ensure sort controls align well after filters */
-.sort-controls {
-    margin-top: 0; /* Remove top margin if it follows filters directly */
-    border-top: none; /* Remove top border if inside form */
-    padding-top: 0;
-    padding-left: 5px; /* Align slightly */
-}
-
 /* --- End Filter Controls Styling --- */
 
 /* --- Sorting Controls Styling (adjust if needed) --- */
@@ -480,7 +484,6 @@ blockquote {
     font-size: 0.9em;
     color: #6c757d;
 }
-
 
 /* --- Sorting Controls Styling --- */
 
@@ -508,4 +511,60 @@ blockquote {
     margin-left: 4px;
     font-size: 0.8em; /* Make indicator slightly smaller */
     color: #343a40; /* Dark color for indicator */
+}
+
+/* --- Feed Profile Filter & Badge Styling --- */
+.profile-filter {
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.profile-filter.form-section select { /* Style the select dropdown */
+    padding: 5px 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 0.9em;
+    margin-left: 5px;
+}
+.profile-filter.form-section label {
+     font-size: 0.9em;
+    color: #495057;
+}
+
+.profile-link {
+    text-decoration: none;
+    color: #007bff;
+    margin-left: 10px;
+    padding: 3px 6px;
+    border-radius: 3px;
+}
+.profile-link:hover {
+    background-color: #e9ecef;
+    text-decoration: none;
+}
+.profile-link.active {
+    font-weight: bold;
+    color: #fff;
+    background-color: #6c757d; /* Grey background for active profile */
+}
+
+.profile-badge {
+    display: inline-block;
+    padding: 2px 7px;
+    font-size: 0.8em;
+    font-weight: 500;
+    border-radius: 4px;
+    background-color: #6c757d; /* Default grey */
+    color: #fff;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+.profile-badge.list-badge { /* Smaller badge on list items */
+    font-size: 0.7em;
+    padding: 1px 5px;
+    margin-right: 5px; /* Space before impact score */
+    margin-left: 0;
 }

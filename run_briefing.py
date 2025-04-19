@@ -1,6 +1,7 @@
 # simple-meridian/run_briefing.py
 
 import os
+import importlib
 import feedparser
 import requests
 import trafilatura
@@ -17,7 +18,12 @@ from bs4 import BeautifulSoup
 
 from urllib.parse import urljoin
 
-import config
+try:
+    import config_base as config # Load base config first
+except ImportError:
+    print("ERROR: config_base.py not found. Please ensure it exists.")
+    exit(1)
+
 import database
 
 # --- Setup ---
@@ -131,13 +137,18 @@ def get_deepseek_embedding(text, model=config.EMBEDDING_MODEL):
 
 # --- Core Functions ---
 
-def scrape_articles():
-    """Scrapes articles, extracts image from RSS or OG tag, saves to DB."""
-    print("\n--- Starting Article Scraping ---")
+def scrape_articles(feed_profile, rss_feeds): # Added params
+    """Scrapes articles for a specific feed profile."""
+    print(f"\n--- Starting Article Scraping [{feed_profile}] ---")
     new_articles_count = 0
-    for feed_url in config.RSS_FEEDS:
+    if not rss_feeds:
+        print(f"Warning: No RSS_FEEDS defined for profile '{feed_profile}'. Skipping scrape.")
+        return
+
+    for feed_url in rss_feeds:
         print(f"Fetching feed: {feed_url}")
         feed = feedparser.parse(feed_url)
+
         if feed.bozo: print(f"Warning: Potential issue parsing feed {feed_url}: {feed.bozo_exception}")
 
         for entry in feed.entries:
@@ -204,14 +215,14 @@ def scrape_articles():
                  print("  No image found in RSS or OG tags.")
 
             article_id = database.add_article(
-                url, title, published_date, feed_source, raw_content, final_image_url # Pass image URL
+                url, title, published_date, feed_source, raw_content,
+                feed_profile,
+                final_image_url
             )
             if article_id: new_articles_count += 1
-            # --- End Save ---
-
             time.sleep(0.5) # Be polite
 
-    print(f"--- Scraping Finished. Added {new_articles_count} new articles. ---")
+    print(f"--- Scraping Finished [{feed_profile}]. Added {new_articles_count} new articles. ---")
 
 
 def process_articles():
@@ -338,13 +349,17 @@ Output ONLY the integer number representing your rating (1-10)."""
     print(f"--- Rating Finished. Rated {rated_count} articles. ---")
 
 
-def generate_brief():
-    """Generates the daily briefing by clustering articles and synthesizing."""
-    print("\n--- Starting Brief Generation ---")
-    articles = database.get_articles_for_briefing(config.BRIEFING_ARTICLE_LOOKBACK_HOURS)
+def generate_brief(feed_profile): # Added feed_profile param
+    """Generates the briefing for a specific feed profile."""
+    print(f"\n--- Starting Brief Generation [{feed_profile}] ---")
+    # Get articles *for this specific profile*
+    articles = database.get_articles_for_briefing(
+        config.BRIEFING_ARTICLE_LOOKBACK_HOURS,
+        feed_profile # *** Pass feed_profile ***
+        )
 
     if not articles or len(articles) < config.MIN_ARTICLES_FOR_BRIEFING:
-        print(f"Not enough recent articles ({len(articles)}) to generate a brief. Min required: {config.MIN_ARTICLES_FOR_BRIEFING}.")
+        print(f"Not enough recent articles ({len(articles)}) for profile '{feed_profile}'. Min required: {config.MIN_ARTICLES_FOR_BRIEFING}.")
         return
 
     print(f"Generating brief from {len(articles)} articles.")
@@ -429,17 +444,23 @@ def generate_brief():
     final_brief_md = call_deepseek_chat(synthesis_prompt)
 
     if final_brief_md:
-        # Save the brief
-        database.save_brief(final_brief_md, article_ids) # Save IDs of all articles considered
-        print("--- Brief Generation Finished Successfully ---")
+        database.save_brief(final_brief_md, article_ids, feed_profile)
+        print(f"--- Brief Generation Finished Successfully [{feed_profile}] ---")
     else:
-        print("--- Brief Generation Failed: Could not synthesize final brief. ---")
+        print(f"--- Brief Generation Failed [{feed_profile}]: Could not synthesize final brief. ---")
+
 
 # --- Main Execution ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Meridian Briefing Runner: Scrapes, processes, and generates briefings.",
         formatter_class=argparse.RawTextHelpFormatter # Nicer help text formatting
+    )
+    parser.add_argument(
+        '--feed',
+        type=str,
+        default=config.DEFAULT_FEED_PROFILE, # Use default from base config
+        help=f"Specify the feed profile name (e.g., brazil, tech). Default: '{config.DEFAULT_FEED_PROFILE}'."
     )
     parser.add_argument(
         '--rate-articles',
@@ -474,31 +495,55 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # --- Load Feed Specific Config ---
+    feed_profile_name = args.feed
+    feed_module_name = f"feeds.{feed_profile_name}"
+    try:
+        feed_config = importlib.import_module(feed_module_name)
+        print(f"Loaded feed configuration: {feed_module_name}")
+        # Optionally merge settings if feed configs override base config values
+        # For now, we just need RSS_FEEDS from it
+        rss_feeds = getattr(feed_config, 'RSS_FEEDS', [])
+        if not rss_feeds:
+             print(f"Warning: RSS_FEEDS list not found or empty in {feed_module_name}.py")
+    except ImportError:
+        print(f"ERROR: Could not import feed configuration '{feed_module_name}.py'.")
+        print(f"Please ensure the file exists and contains an RSS_FEEDS list.")
+        # Decide how to handle: exit or continue without scraping/generation?
+        # Let's allow processing/rating to run, but disable scrape/generate
+        rss_feeds = None # Indicate feed load failure
+
     # Default to running all if no specific stage OR --all is provided
     should_run_all = args.run_all or not (args.scrape or args.process or args.generate or args.rate)
 
-    print(f"Briefing Run - {datetime.now()}")
+    print(f"\nMeridian Briefing Run [{feed_profile_name}] - {datetime.now()}")
+    print("Initializing database...")
     database.init_db() # Initialize DB regardless of stage run
 
     if should_run_all:
         print("\n>>> Running ALL stages <<<")
-        scrape_articles()
+        if rss_feeds is not None: scrape_articles(feed_profile_name, rss_feeds)
+        else: print("Skipping scrape stage due to feed config load error.")
         process_articles()
         rate_articles()
-        generate_brief()
+        if rss_feeds is not None: generate_brief(feed_profile_name)
+        else: print("Skipping generate stage due to feed config load error.")
     else:
-        # Run specific stages if their flags are set
         if args.scrape:
-            print("\n>>> Running ONLY Scrape Articles stage <<<")
-            scrape_articles()
-        if args.rate:
-            print("\n>>> Running ONLY Rate Articles stage <<<")
-            rate_articles()
+            if rss_feeds is not None:
+                 print(f"\n>>> Running ONLY Scrape Articles stage [{feed_profile_name}] <<<")
+                 scrape_articles(feed_profile_name, rss_feeds)
+            else: print(f"Cannot run scrape stage: feed config '{feed_module_name}.py' failed to load.")
         if args.process:
             print("\n>>> Running ONLY Process Articles stage <<<")
             process_articles()
+        if args.rate:
+            print("\n>>> Running ONLY Rate Articles stage <<<")
+            rate_articles()
         if args.generate:
-            print("\n>>> Running ONLY Generate Brief stage <<<")
-            generate_brief()
+            if rss_feeds is not None:
+                print(f"\n>>> Running ONLY Generate Brief stage [{feed_profile_name}] <<<")
+                generate_brief(feed_profile_name)
+            else: print(f"Cannot run generate stage: feed config '{feed_module_name}.py' failed to load.")
 
-    print(f"\nRun Finished - {datetime.now()}")
+    print(f"\nRun Finished [{feed_profile_name}] - {datetime.now()}")

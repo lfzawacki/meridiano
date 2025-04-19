@@ -1,0 +1,101 @@
+{# templates/view_article.html #}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Article: {{ article['title'] | default('Untitled') }} - Meridian</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="navigation">
+             {# Link back to the articles list #}
+             <a href="{{ url_for('list_articles') }}">« View Articles List</a>
+             <span style="margin: 0 10px;">|</span> {# Separator #}
+             <a href="{{ url_for('index') }}">View Briefings List »</a>
+        </div>
+
+        <div class="article-detail-image-container">
+            {% if article.image_url %}
+                <a href="{{ article.url }}" target="_blank" title="View Original Article">
+                    <img src="{{ article.image_url }}"
+                         alt="Image for {{ article.title | default('') }}"
+                         class="article-detail-image"
+                         onerror="this.parentElement.style.display='none'; document.getElementById('detail-placeholder').style.display='flex';"> {# Hide link+img, show placeholder #}
+                </a>
+                {# Placeholder for JS onerror #}
+                <div id="detail-placeholder" class="article-image-placeholder article-detail-placeholder" style="display: none;">
+                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="placeholder-icon"><path d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06l4.47-4.47a.75.75 0 0 1 1.06 0l3.001 3.001 1.504-1.504a.75.75 0 0 1 1.06 0l4.91 4.91V6a.75.75 0 0 0-.75-.75H3.75A.75.75 0 0 0 3 6v10.06Z"/></svg>
+                     <span>No Image Available</span>
+                 </div>
+            {% else %}
+                 {# Placeholder shown immediately #}
+                 <div class="article-image-placeholder article-detail-placeholder">
+                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="placeholder-icon"><path d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06l4.47-4.47a.75.75 0 0 1 1.06 0l3.001 3.001 1.504-1.504a.75.75 0 0 1 1.06 0l4.91 4.91V6a.75.75 0 0 0-.75-.75H3.75A.75.75 0 0 0 3 6v10.06Z"/></svg>
+                     <span>No Image Available</span>
+                 </div>
+            {% endif %}
+        </div>
+
+        <h1>Article Details</h1>
+
+        {# Use a definition list or simple sections for details #}
+        <dl class="article-details">
+            <dt>Title</dt>
+            <dd>{{ article['title'] | default('N/A') }}</dd>
+
+            <dt>Impact Score</dt>
+            <dd>
+                {% if article.impact_score is not none %}
+                    <span class="impact-score score-{{ article.impact_score }}" style="display: inline-block; margin-right: 5px;">
+                        {{ article.impact_score }}
+                    </span> / 10
+                {% else %}
+                    <span class="impact-score score-unknown" style="display: inline-block; margin-right: 5px;">-</span> (Not Rated)
+                {% endif %}
+            </dd>
+
+            <dt>Original URL</dt>
+            <dd><a href="{{ article['url'] }}" target="_blank">{{ article['url'] }}</a></dd>
+
+            <dt>Source Feed</dt>
+            <dd>{{ article['feed_source'] | default('N/A') }}</dd>
+
+            <dt>Published Date</dt>
+            <dd>{{ article['published_date'] | datetimeformat | default('N/A') }}</dd>
+
+            <dt>Fetched Date</dt>
+            <dd>{{ article['fetched_at'] | datetimeformat | default('N/A') }}</dd>
+
+            <dt>Processed Date</dt>
+            <dd>{{ article['processed_at'] | datetimeformat | default('N/A') }}</dd>
+
+            <dt>Embedding Status</dt>
+            <dd>{{ embedding_status }}</dd>
+
+            <dt>Cluster ID</dt> {# Assuming cluster_id might be None or 0 if not clustered #}
+            <dd>{{ article['cluster_id'] if article['cluster_id'] is not none else 'Not Clustered' }}</dd>
+
+            <dt>AI Summary (Processed Content)</dt>
+            <dd class="content-block">
+                {% if article['processed_content'] %}
+                    {{ article['processed_content'] }}
+                {% else %}
+                    <em>Not Processed / Summarized Yet</em>
+                {% endif %}
+            </dd>
+
+            <dt>Raw Extracted Content</dt>
+            <dd class="content-block raw-content">
+                {% if article['raw_content'] %}
+                    <pre>{{ article['raw_content'] }}</pre>
+                {% else %}
+                    <em>Raw content not available or failed to extract.</em>
+                {% endif %}
+            </dd>
+        </dl>
+
+    </div>
+</body>
+</html>

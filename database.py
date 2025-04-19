@@ -34,11 +34,22 @@ def init_db():
         cluster_id INTEGER       -- Optional: store cluster assignment
         impact_score INTEGER
         image_url TEXT
+        feed_profile TEXT NOT NULL DEFAULT 'default'
     )
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_articles_url ON articles (url)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_articles_processed_at ON articles (processed_at)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_articles_published_date ON articles (published_date)')
+
+    try:
+        cursor.execute("ALTER TABLE articles ADD COLUMN feed_profile TEXT NOT NULL DEFAULT 'default'")
+        conn.commit()
+        print("Added 'feed_profile' column to articles table.")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e): pass
+        else: raise e
+    # Add index
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_articles_feed_profile ON articles (feed_profile)')
 
     # Briefs Table
     cursor.execute('''
@@ -47,9 +58,18 @@ def init_db():
         generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         brief_markdown TEXT NOT NULL,
         contributing_article_ids TEXT -- Store list of article IDs as JSON string
+        feed_profile TEXT NOT NULL DEFAULT 'default'
     )
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_briefs_generated_at ON briefs (generated_at)')
+
+    try:
+        cursor.execute("ALTER TABLE briefs ADD COLUMN feed_profile TEXT NOT NULL DEFAULT 'default'")
+        conn.commit()
+        print("Added 'feed_profile' column to briefs table.")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e): pass
+        else: raise e
 
     try:
         cursor.execute('ALTER TABLE articles ADD COLUMN impact_score INTEGER')
@@ -117,29 +137,28 @@ def get_article_by_id(article_id):
     conn.close()
     return article_data
 
-def _build_article_filter_clause(start_date=None, end_date=None):
-    """Helper to build WHERE clauses and params for date filtering."""
+def _build_article_filter_clause(start_date=None, end_date=None, feed_profile=None): # Added feed_profile filter
+    """Helper to build WHERE clauses including date and feed profile filters."""
     where_clauses = []
     params = []
 
     if start_date:
-        # Assuming start_date is a date object or ISO string 'YYYY-MM-DD'
         where_clauses.append("date(published_date) >= ?")
-        params.append(str(start_date)) # Use date() function in SQL for comparison
-
+        params.append(str(start_date))
     if end_date:
-        # Assuming end_date is a date object or ISO string 'YYYY-MM-DD'
-        # Filter includes the entire end_date day
         where_clauses.append("date(published_date) <= ?")
         params.append(str(end_date))
+    if feed_profile: # Filter by profile if provided
+        where_clauses.append("feed_profile = ?")
+        params.append(feed_profile)
 
-    where_string = " AND ".join(where_clauses) if where_clauses else "1=1"
+    where_string = " AND ".join(where_clauses) if where_clauses else "1=1" # 1=1 ensures valid SQL if no filters
     return where_string, params
 
 def get_all_articles(page=1, per_page=config.ARTICLES_PER_PAGE,
                      sort_by='published_date', direction='desc',
-                     start_date=None, end_date=None): # Added date filters
-    """ Fetches a page of articles, allowing sorting and date filtering. """
+                     start_date=None, end_date=None, feed_profile=None):
+    """ Fetches articles, allowing sorting, date, and feed profile filtering. """
     conn = get_db_connection()
     cursor = conn.cursor()
     offset = (page - 1) * per_page
@@ -147,51 +166,45 @@ def get_all_articles(page=1, per_page=config.ARTICLES_PER_PAGE,
     db_sort_column = allowed_sort_columns.get(sort_by, 'published_date')
     db_direction = 'ASC' if direction.lower() == 'asc' else 'DESC'
     order_by_clause = f"ORDER BY {db_sort_column} {db_direction}, id DESC"
-    where_string, date_params = _build_article_filter_clause(start_date, end_date)
+
+    where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile)
 
     sql = f'''
     SELECT id, title, url, feed_source, published_date, impact_score,
-           processed_content, image_url
+    processed_content, image_url, feed_profile
     FROM articles
     WHERE {where_string}
     {order_by_clause}
     LIMIT ? OFFSET ?
     '''
-    final_params = date_params + [per_page, offset]
+    final_params = filter_params + [per_page, offset]
     cursor.execute(sql, final_params)
     articles = cursor.fetchall()
     conn.close()
     return articles
 
-def get_total_article_count(start_date=None, end_date=None): # Added date filters
-    """ Returns the total count of articles, optionally filtered by date. """
+def get_total_article_count(start_date=None, end_date=None, feed_profile=None): # Added feed_profile filter
+    """ Returns total count of articles, optionally filtered by date and feed profile. """
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    # --- Date Filtering ---
-    where_string, date_params = _build_article_filter_clause(start_date, end_date)
-    # --- End Date Filtering ---
-
+    where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile)
     sql = f'SELECT COUNT(*) FROM articles WHERE {where_string}'
-
-    # print(f"DEBUG COUNT SQL: {sql}")
-    # print(f"DEBUG COUNT PARAMS: {date_params}")
-    cursor.execute(sql, date_params)
+    cursor.execute(sql, filter_params)
     count = cursor.fetchone()[0]
     conn.close()
     return count
 
-def add_article(url, title, published_date, feed_source, raw_content, image_url=None): # Added image_url param
+def add_article(url, title, published_date, feed_source, raw_content, feed_profile, image_url=None): # Added image_url param
     """Adds a new article with optional image URL."""
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
         cursor.execute('''
-        INSERT INTO articles (url, title, published_date, feed_source, raw_content, fetched_at, image_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (url, title, published_date, feed_source, raw_content, datetime.now(), image_url)) # Added image_url
+        INSERT INTO articles (url, title, published_date, feed_source, raw_content, fetched_at, image_url, feed_profile)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (url, title, published_date, feed_source, raw_content, datetime.now(), image_url, feed_profile))
         conn.commit()
-        print(f"Added article: {title}")
+        print(f"Added article [{feed_profile}]: {title}")
         return cursor.lastrowid
     except sqlite3.IntegrityError:
         return None
@@ -226,43 +239,50 @@ def update_article_processing(article_id, processed_content, embedding):
     conn.commit()
     conn.close()
 
-def get_articles_for_briefing(lookback_hours):
-    """Gets recently processed articles with embeddings for briefing generation."""
+def get_articles_for_briefing(lookback_hours, feed_profile):
+    """Gets recently processed articles *for a specific feed profile*."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
     cursor.execute('''
     SELECT id, processed_content, embedding FROM articles
     WHERE processed_at >= ? AND embedding IS NOT NULL
+      AND feed_profile = ?  -- *** Filter by profile ***
     ORDER BY processed_at DESC
-    ''', (cutoff_time,))
+    ''', (cutoff_time, feed_profile))
     articles = cursor.fetchall()
     conn.close()
     return articles
 
-def save_brief(brief_markdown, contributing_article_ids):
-    """Saves the generated brief markdown and contributing article IDs."""
+def save_brief(brief_markdown, contributing_article_ids, feed_profile): # Added feed_profile
+    """Saves the generated brief including its feed profile."""
     conn = get_db_connection()
     cursor = conn.cursor()
     ids_json = json.dumps(contributing_article_ids)
     cursor.execute('''
-    INSERT INTO briefs (brief_markdown, contributing_article_ids, generated_at)
-    VALUES (?, ?, ?)
-    ''', (brief_markdown, ids_json, datetime.now()))
+    INSERT INTO briefs (brief_markdown, contributing_article_ids, generated_at, feed_profile)
+    VALUES (?, ?, ?, ?)
+    ''', (brief_markdown, ids_json, datetime.now(), feed_profile)) # Added feed_profile
     conn.commit()
     last_id = cursor.lastrowid
     conn.close()
-    print(f"Saved brief with ID: {last_id}")
+    print(f"Saved brief [{feed_profile}] with ID: {last_id}")
     return last_id
 
-def get_all_briefs_metadata():
-    """Retrieves ID and generation timestamp for all briefs, newest first."""
+def get_all_briefs_metadata(feed_profile=None): # Added feed_profile filter
+    """Retrieves ID, timestamp, and profile for briefs, newest first, optionally filtered."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('''
-    SELECT id, generated_at FROM briefs
-    ORDER BY generated_at DESC
-    ''')
+    sql = '''
+    SELECT id, generated_at, feed_profile FROM briefs
+    '''
+    params = []
+    if feed_profile:
+        sql += " WHERE feed_profile = ?"
+        params.append(feed_profile)
+    sql += " ORDER BY generated_at DESC"
+
+    cursor.execute(sql, params)
     briefs_metadata = cursor.fetchall()
     conn.close()
     return briefs_metadata
@@ -278,3 +298,14 @@ def get_brief_by_id(brief_id):
     brief_data = cursor.fetchone()
     conn.close()
     return brief_data
+
+def get_distinct_feed_profiles(table='articles'):
+    """Gets a list of distinct feed_profile values from a table."""
+    if table not in ['articles', 'briefs']:
+        raise ValueError("Invalid table name for distinct profiles.")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(f'SELECT DISTINCT feed_profile FROM {table} ORDER BY feed_profile')
+    profiles = [row['feed_profile'] for row in cursor.fetchall()]
+    conn.close()
+    return profiles

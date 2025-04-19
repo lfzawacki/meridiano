@@ -371,7 +371,7 @@ blockquote {
 .filter-sort-form {
     display: flex;
     flex-direction: column; /* Stack sections vertically */
-    gap: 15px; /* Space between sections */
+    gap: 10px; /* Space between sections */
     margin-bottom: 20px;
     padding: 15px;
     background-color: #f8f9fa;
@@ -382,11 +382,124 @@ blockquote {
 .form-section {
     /* Base styles for sections within the form if needed */
     padding-bottom: 10px;
-    border-bottom: 1px dotted #ced4da; /* Dotted separator */
+    border-bottom: 1px solid #eee; /* Dotted separator */
 }
 .form-section:last-child {
     border-bottom: none;
     padding-bottom: 0;
+}
+
+.form-row {
+    display: flex;
+    flex-wrap: wrap; /* Allow wrapping */
+    gap: 15px; /* Space between profile and search */
+    align-items: center;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+/* --- Search Filter Styling --- */
+.search-filter {
+    display: flex;
+    align-items: center;
+    flex-grow: 1; /* Allow search to take more space */
+    background-color: #fff; /* White background */
+    border: 1px solid #ced4da;
+    border-radius: 20px; /* Rounded corners */
+    padding: 0px 5px 0px 12px; /* Padding left for text, less right for button */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.search-filter input[type="search"] {
+    border: none;
+    outline: none;
+    padding: 8px 5px;
+    font-size: 0.95em;
+    flex-grow: 1; /* Input takes available space */
+    background: transparent;
+    min-width: 150px; /* Minimum width */
+}
+/* Hide browser's default cancel button */
+.search-filter input[type="search"]::-webkit-search-cancel-button,
+.search-filter input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+
+.btn-search {
+    background: none;
+    border: none;
+    padding: 5px 8px;
+    cursor: pointer;
+    color: #6c757d;
+}
+.btn-search:hover {
+    color: #007bff;
+}
+.btn-search svg { /* Style embedded SVG */
+    display: block; /* Remove extra space below SVG */
+    width: 18px;
+    height: 18px;
+}
+
+.btn-clear-search {
+    background: none;
+    border: none;
+    color: #adb5bd;
+    font-size: 1.4em;
+    line-height: 1;
+    padding: 0 8px;
+    cursor: pointer;
+    text-decoration: none;
+    margin-left: 4px; /* Space from search button */
+}
+.btn-clear-search:hover {
+    color: #dc3545; /* Red on hover */
+}
+
+/* --- Collapsible Date Filter Styling --- */
+.date-filter-toggle {
+    background-color: transparent;
+    border: none;
+    color: #007bff;
+    cursor: pointer;
+    font-size: 0.9em;
+    padding: 5px 0;
+    width: 100%;
+    text-align: left;
+    margin-bottom: 10px;
+}
+.date-filter-toggle:hover {
+    text-decoration: underline;
+}
+.toggle-icon {
+    display: inline-block;
+    margin-left: 5px;
+    font-weight: bold;
+    width: 1em; /* Fixed width */
+    text-align: center;
+}
+
+.date-filter-content {
+    /* display: none; */ /* Set inline style initially */
+    padding: 15px;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    background-color: #fff; /* White background inside */
+    margin-top: -10px; /* Pull up slightly */
+    display: flex; /* Use flex for layout inside */
+    flex-direction: column;
+    gap: 15px; /* Space between date inputs and presets */
+}
+
+/* Ensure date inputs and presets display nicely within collapsible */
+.date-filter-content .date-inputs,
+.date-filter-content .preset-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
 }
 
 .filter-controls {
@@ -480,9 +593,11 @@ blockquote {
 .sort-controls {
     margin-bottom: 20px;
     padding-bottom: 10px;
-    /* border-bottom: 1px solid #eee; */ /* Remove bottom border if inside form */
     font-size: 0.9em;
     color: #6c757d;
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+    margin-top: 10px;
 }
 
 /* --- Sorting Controls Styling --- */
@@ -516,8 +631,7 @@ blockquote {
 /* --- Feed Profile Filter & Badge Styling --- */
 .profile-filter {
     margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #eee;
+    padding-bottom: 0;
     font-size: 0.9em;
     color: #6c757d;
 }

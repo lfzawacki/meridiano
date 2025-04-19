@@ -225,9 +225,12 @@ def scrape_articles(feed_profile, rss_feeds): # Added params
     print(f"--- Scraping Finished [{feed_profile}]. Added {new_articles_count} new articles. ---")
 
 
-def process_articles():
+def process_articles(effective_config):
     """Processes unprocessed articles: summarizes and generates embeddings."""
     print("\n--- Starting Article Processing ---")
+    chat_model = getattr(effective_config, 'DEEPSEEK_CHAT_MODEL', 'deepseek-chat') # Get model from effective config
+    summary_prompt_template = getattr(effective_config, 'PROMPT_ARTICLE_SUMMARY', config.PROMPT_ARTICLE_SUMMARY)
+
     unprocessed = database.get_unprocessed_articles(1000)
     processed_count = 0
     if not unprocessed:
@@ -239,8 +242,11 @@ def process_articles():
         print(f"Processing article ID: {article['id']} - {article['url'][:50]}...")
 
         # 1. Summarize using Deepseek Chat
-        summary_prompt = f"Summarize the key points of this news article objectively in 2-4 sentences. Identify the main topics covered.\n\nArticle:\n{article['raw_content'][:4000]}" # Limit context window
-        summary = call_deepseek_chat(summary_prompt)
+        # Format the potentially profile-specific summary prompt
+        summary_prompt = summary_prompt_template.format(
+            article_content=article['raw_content'][:4000] # Limit context
+        )
+        summary = call_deepseek_chat(summary_prompt, model=chat_model)
 
         if not summary:
             print(f"Skipping article {article['id']} due to summarization error.")
@@ -266,12 +272,15 @@ def process_articles():
 
     print(f"--- Processing Finished. Processed {processed_count} articles. ---")
 
-def rate_articles():
+def rate_articles(effective_config):
     """Rates the impact of processed articles using an LLM."""
     print("\n--- Starting Article Impact Rating ---")
     if not client:
         print("Skipping rating: Deepseek client not initialized.")
         return
+
+    chat_model = getattr(effective_config, 'DEEPSEEK_CHAT_MODEL', 'deepseek-chat')
+    rating_prompt_template = getattr(effective_config, 'PROMPT_IMPACT_RATING', config.PROMPT_IMPACT_RATING)
 
     unrated = database.get_unrated_articles(1000)
     rated_count = 0
@@ -287,39 +296,11 @@ def rate_articles():
             print(f"  Skipping article {article['id']} - no summary found.")
             continue
 
-        # Define the prompt for impact rating
-#         rating_prompt = f"""Analyze the following article summary and estimate its overall impact. Consider factors like newsworthiness, original reporting, geographic scope (local vs global), number of people affected, severity, and potential long-term consequences. Be strict with the scores, the quality of the estimate is VITAL for our understanding of the global landscape.
-#
-# Rate the impact on a scale of 1 to 10, where:
-# 1-2: Low newsworthiness. Minor, niche, or local interest. Product or show reviews.
-# 3-4: Opinion piece, notable pop culture happening, notable event for a specific region or community.
-# 5-6: Hard hitting jornalism. Significant event with broader regional or moderate international implications.
-# 7-8: Comprehensive jornalistic exposes. Major event with significant international importance or wide-reaching effects.
-# 9-10: Critical global event with severe, widespread, or potentially historic implications.
-
-        rating_prompt = f"""Analyze the following article summary and estimate its overall impact. Consider factors like newsworthiness, originality, geographic scope (local vs global), number of people affected, severity, and potential long-term consequences. Be extremely critical and conservative when assigning scores—higher scores should reflect truly exceptional or rare events.
-
-Rate the impact on a scale of 1 to 10, using these guidelines:
-
-    1-2: Minimal significance. Niche interest or local news with no broader relevance. Example: A review of a local restaurant or a minor product launch.
-
-    3-4: Regionally notable. Pop culture happenings, local events, or community-focused stories. Example: A local mayor’s resignation or a regional festival.
-
-    5-6: Regionally significant or moderately global. Affects multiple communities or industries. Example: A nationwide strike or a major company bankruptcy.
-
-    7-8: Highly significant. Major international relevance, significant disruptions, or wide-reaching implications. Example: A large-scale natural disaster, global health alerts, or a major geopolitical shift.
-
-    9-10: Extraordinary and historic. Global, severe, and long-lasting implications. Example: Declaration of war, groundbreaking global treaties, or critical climate crises.
-
-Key Reminder: Scores of 9-10 should be exceedingly rare and reserved for world-defining events. Always err on the side of a lower score unless the impact is undeniably significant.
-
-Summary:
-"{summary}"
-
-Output ONLY the integer number representing your rating (1-10)."""
-
-        # Call the LLM
-        rating_response = call_deepseek_chat(rating_prompt, model=config.DEEPSEEK_CHAT_MODEL) # Use chat model
+        # Format the potentially profile-specific rating prompt
+        rating_prompt = rating_prompt_template.format(
+            summary=summary
+        )
+        rating_response = call_deepseek_chat(rating_prompt, model=chat_model)
 
         impact_score = None
         if rating_response:
@@ -349,7 +330,7 @@ Output ONLY the integer number representing your rating (1-10)."""
     print(f"--- Rating Finished. Rated {rated_count} articles. ---")
 
 
-def generate_brief(feed_profile): # Added feed_profile param
+def generate_brief(feed_profile, effective_config): # Added feed_profile param
     """Generates the briefing for a specific feed profile."""
     print(f"\n--- Starting Brief Generation [{feed_profile}] ---")
     # Get articles *for this specific profile*
@@ -433,14 +414,31 @@ def generate_brief(feed_profile): # Added feed_profile param
     # Sort clusters by size (number of articles) to prioritize major themes
     cluster_analyses.sort(key=lambda x: x['size'], reverse=True)
 
-    # Synthesize Final Brief
-    print("Synthesizing final brief...")
-    synthesis_prompt = "You are an AI assistant writing a daily intelligence briefing for a tech and politics youtuber using Markdown. The quality of this briefing is vital for the development of the channel. Synthesize the following analyzed news clusters into a coherent, high-level executive summary. Start with the 2-3 most critical overarching themes globally based *only* on these inputs. Then, provide concise bullet points summarizing key developments within the most significant clusters (roughly 7-10 clusters) and a paragraph summarizing connections and conclusions between the points. Maintain an objective, analytical tone. Avoid speculation. Try to include the sources of each statement using a numbered reference style using Markdown link syntax. The link should reference the article title and NOT the news cluster, and link to the article link which is available right after it's summary. It's vital to understand the source of the information for later analysis.\n\n"
-    synthesis_prompt += "Analyzed News Clusters (Most significant first):\n\n"
-    for i, cluster in enumerate(cluster_analyses[:10]): # Limit to top 5 clusters for final brief
-        synthesis_prompt += f"--- Cluster {i+1} ({cluster['size']} articles) ---\n"
-        synthesis_prompt += f"Analysis: {cluster['analysis']}\n\n"
+    # Synthesize Final Brief using profile-specific or default prompt
+    brief_synthesis_prompt_template = getattr(effective_config, 'PROMPT_BRIEF_SYNTHESIS', config.PROMPT_BRIEF_SYNTHESIS) # Fallback
+    print(f"DEBUG: Using Brief Synthesis Prompt Template:\n'''{brief_synthesis_prompt_template[:100]}...'''") # Debug print
 
+    cluster_analyses_text = ""
+    for i, cluster in enumerate(cluster_analyses[:5]):
+        cluster_analyses_text += f"--- Cluster {i+1} ({cluster['size']} articles) ---\nAnalysis: {cluster['analysis']}\n\n"
+
+    synthesis_prompt = brief_synthesis_prompt_template.format(
+        cluster_analyses_text=cluster_analyses_text,
+        feed_profile=feed_profile
+    )
+
+    # Synthesize Final Brief using profile-specific or default prompt
+    brief_synthesis_prompt_template = getattr(effective_config, 'PROMPT_BRIEF_SYNTHESIS', config.PROMPT_BRIEF_SYNTHESIS) # Fallback
+    print(f"DEBUG: Using Brief Synthesis Prompt Template:\n'''{brief_synthesis_prompt_template[:100]}...'''") # Debug print
+
+    cluster_analyses_text = ""
+    for i, cluster in enumerate(cluster_analyses[:5]):
+        cluster_analyses_text += f"--- Cluster {i+1} ({cluster['size']} articles) ---\nAnalysis: {cluster['analysis']}\n\n"
+
+    synthesis_prompt = brief_synthesis_prompt_template.format(
+        cluster_analyses_text=cluster_analyses_text,
+        feed_profile=feed_profile
+    )
     final_brief_md = call_deepseek_chat(synthesis_prompt)
 
     if final_brief_md:
@@ -513,6 +511,26 @@ if __name__ == "__main__":
         # Let's allow processing/rating to run, but disable scrape/generate
         rss_feeds = None # Indicate feed load failure
 
+    # --- Create Effective Config ---
+    # Start with base config vars
+    effective_config_dict = {k: v for k, v in config.__dict__.items() if not k.startswith('__')}
+    # Override with feed_config vars if they exist
+    if feed_config:
+        for k, v in feed_config.__dict__.items():
+            if not k.startswith('__'):
+                effective_config_dict[k] = v
+
+    # Convert dict to a simple object for easier access (optional)
+    class EffectiveConfig:
+        def __init__(self, dictionary):
+            for k, v in dictionary.items():
+                setattr(self, k, v)
+    effective_config = EffectiveConfig(effective_config_dict)
+
+    # Ensure RSS_FEEDS is correctly set in the effective config if loaded
+    if rss_feeds is not None:
+        effective_config.RSS_FEEDS = rss_feeds
+
     # Default to running all if no specific stage OR --all is provided
     should_run_all = args.run_all or not (args.scrape or args.process or args.generate or args.rate)
 
@@ -520,30 +538,32 @@ if __name__ == "__main__":
     print("Initializing database...")
     database.init_db() # Initialize DB regardless of stage run
 
+    current_rss_feeds = getattr(effective_config, 'RSS_FEEDS', None)
+
     if should_run_all:
         print("\n>>> Running ALL stages <<<")
-        if rss_feeds is not None: scrape_articles(feed_profile_name, rss_feeds)
-        else: print("Skipping scrape stage due to feed config load error.")
-        process_articles()
-        rate_articles()
-        if rss_feeds is not None: generate_brief(feed_profile_name)
-        else: print("Skipping generate stage due to feed config load error.")
+        if current_rss_feeds: scrape_articles(feed_profile_name, current_rss_feeds)
+        else: print("Skipping scrape stage: No RSS_FEEDS found for profile.")
+        process_articles(effective_config)
+        rate_articles(effective_config)
+        if current_rss_feeds: generate_brief(feed_profile_name, effective_config)
+        else: print("Skipping generate stage: No RSS_FEEDS found for profile.")
     else:
         if args.scrape:
-            if rss_feeds is not None:
+            if current_rss_feeds:
                  print(f"\n>>> Running ONLY Scrape Articles stage [{feed_profile_name}] <<<")
-                 scrape_articles(feed_profile_name, rss_feeds)
-            else: print(f"Cannot run scrape stage: feed config '{feed_module_name}.py' failed to load.")
+                 scrape_articles(feed_profile_name, current_rss_feeds)
+            else: print(f"Cannot run scrape stage: No RSS_FEEDS found for profile '{feed_profile_name}'.")
         if args.process:
             print("\n>>> Running ONLY Process Articles stage <<<")
-            process_articles()
+            process_articles(effective_config)
         if args.rate:
             print("\n>>> Running ONLY Rate Articles stage <<<")
-            rate_articles()
+            rate_articles(effective_config)
         if args.generate:
-            if rss_feeds is not None:
+            if current_rss_feeds: # Check if feeds exist, as brief relies on articles from them
                 print(f"\n>>> Running ONLY Generate Brief stage [{feed_profile_name}] <<<")
-                generate_brief(feed_profile_name)
-            else: print(f"Cannot run generate stage: feed config '{feed_module_name}.py' failed to load.")
+                generate_brief(feed_profile_name, effective_config)
+            else: print(f"Cannot run generate stage: No RSS_FEEDS found for profile '{feed_profile_name}'.")
 
     print(f"\nRun Finished [{feed_profile_name}] - {datetime.now()}")

@@ -61,7 +61,7 @@ def view_brief(brief_id):
 
 @app.route('/articles')
 def list_articles():
-    """ Displays a paginated list of stored articles with sorting and date filtering. """
+    """ Displays a paginated list of stored articles with search, sorting and date filtering. """
     # --- Pagination ---
     try: page = int(request.args.get('page', 1))
     except ValueError: page = 1
@@ -120,22 +120,25 @@ def list_articles():
             end_date = None
             print(f"Warning: Invalid end_date format '{request.args.get('end_date')}'")
 
-    # --- End Date Filtering ---
-
+    # Feed Profile Filtering
     current_feed_profile = request.args.get('feed_profile', '') # Empty means 'All'
+
+    # Search Term Filter
+    current_search_term = request.args.get('search', '').strip() # Get search term, trim whitespace
 
     # Fetch total count with ALL filters
     total_articles = database.get_total_article_count(
-        start_date=start_date,
-        end_date=end_date,
-        feed_profile=current_feed_profile if current_feed_profile else None # Pass None for 'All'
-        )
+        start_date=start_date, end_date=end_date,
+        feed_profile=current_feed_profile if current_feed_profile else None,
+        search_term=current_search_term if current_search_term else None
+    )
 
     # Fetch articles with ALL filters and sorting
     articles_data = database.get_all_articles(
         page=page, per_page=per_page, sort_by=sort_by, direction=direction,
         start_date=start_date, end_date=end_date,
-        feed_profile=current_feed_profile if current_feed_profile else None # Pass None for 'All'
+        feed_profile=current_feed_profile if current_feed_profile else None,
+        search_term=current_search_term if current_search_term else None
     )
 
     articles_data = [
@@ -163,9 +166,9 @@ def list_articles():
                            current_sort_by=sort_by, current_direction=direction,
                            current_start_date=start_date_str, current_end_date=end_date_str,
                            current_preset=preset,
-                           # Feed profile state
                            available_profiles=available_profiles,
-                           current_feed_profile=current_feed_profile)
+                           current_feed_profile=current_feed_profile,
+                           current_search_term=current_search_term)
 
 @app.route('/article/<int:article_id>')
 def view_article(article_id):

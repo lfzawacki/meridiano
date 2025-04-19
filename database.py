@@ -3,7 +3,7 @@
 import sqlite3
 import json
 from datetime import datetime, timedelta
-import config
+import config_base as config
 
 DB_FILE = config.DATABASE_FILE
 
@@ -137,28 +137,41 @@ def get_article_by_id(article_id):
     conn.close()
     return article_data
 
-def _build_article_filter_clause(start_date=None, end_date=None, feed_profile=None): # Added feed_profile filter
-    """Helper to build WHERE clauses including date and feed profile filters."""
+def _build_article_filter_clause(start_date=None, end_date=None, feed_profile=None, search_term=None): # Added search_term
+    """Helper to build WHERE clauses including date, profile, and search filters."""
     where_clauses = []
     params = []
 
+    # Date filters
     if start_date:
         where_clauses.append("date(published_date) >= ?")
         params.append(str(start_date))
     if end_date:
         where_clauses.append("date(published_date) <= ?")
         params.append(str(end_date))
+
+    # Profile filter
     if feed_profile: # Filter by profile if provided
         where_clauses.append("feed_profile = ?")
         params.append(feed_profile)
 
+    # Search Filter
+    if search_term:
+        # Add clauses for title OR raw_content LIKE search_term
+        # Use parentheses for correct OR precedence
+        where_clauses.append("(title LIKE ? OR raw_content LIKE ?)")
+        # Add the search term twice to the params list, with wildcards
+        like_pattern = f"%{search_term}%"
+        params.append(like_pattern)
+        params.append(like_pattern)
+
     where_string = " AND ".join(where_clauses) if where_clauses else "1=1" # 1=1 ensures valid SQL if no filters
     return where_string, params
 
-def get_all_articles(page=1, per_page=config.ARTICLES_PER_PAGE,
+def get_all_articles(page=1, per_page=25,
                      sort_by='published_date', direction='desc',
-                     start_date=None, end_date=None, feed_profile=None):
-    """ Fetches articles, allowing sorting, date, and feed profile filtering. """
+                     start_date=None, end_date=None, feed_profile=None, search_term=None): # Added search_term
+    """ Fetches articles, allowing sorting, date, profile, and search filtering. """
     conn = get_db_connection()
     cursor = conn.cursor()
     offset = (page - 1) * per_page
@@ -167,7 +180,7 @@ def get_all_articles(page=1, per_page=config.ARTICLES_PER_PAGE,
     db_direction = 'ASC' if direction.lower() == 'asc' else 'DESC'
     order_by_clause = f"ORDER BY {db_sort_column} {db_direction}, id DESC"
 
-    where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile)
+    where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile, search_term)
 
     sql = f'''
     SELECT id, title, url, feed_source, published_date, impact_score,
@@ -183,11 +196,11 @@ def get_all_articles(page=1, per_page=config.ARTICLES_PER_PAGE,
     conn.close()
     return articles
 
-def get_total_article_count(start_date=None, end_date=None, feed_profile=None): # Added feed_profile filter
-    """ Returns total count of articles, optionally filtered by date and feed profile. """
+def get_total_article_count(start_date=None, end_date=None, feed_profile=None, search_term=None): # Added search_term
+    """ Returns total count of articles, optionally filtered by date, profile, and search. """
     conn = get_db_connection()
     cursor = conn.cursor()
-    where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile)
+    where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile, search_term)
     sql = f'SELECT COUNT(*) FROM articles WHERE {where_string}'
     cursor.execute(sql, filter_params)
     count = cursor.fetchone()[0]

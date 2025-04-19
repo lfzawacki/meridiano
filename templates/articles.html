@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Articles {% if current_feed_profile %}[{{ current_feed_profile }}]{% endif %} (Page {{ page }}) - Meridian</title>
+    <title>Articles {% if current_feed_profile %}[{{ current_feed_profile }}]{% endif %}{% if current_search_term %} | Search: {{ current_search_term }}{% endif %} (Page {{ page }}) - Meridian</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -26,49 +26,71 @@
             <input type="hidden" name="sort_by" value="{{ current_sort_by }}">
             <input type="hidden" name="direction" value="{{ current_direction }}">
 
-            <div class="profile-filter form-section">
-              <label for="feed_profile_select">Profile:</label>
-              <select name="feed_profile" id="feed_profile_select" onchange="this.form.submit()">
-                <option value="" {% if not current_feed_profile %}selected{% endif %}>All Profiles</option>
-                {% for profile in available_profiles %}
-                  <option value="{{ profile }}" {% if current_feed_profile == profile %}selected{% endif %}>
-                    {{ profile }}
-                  </option>
-                {% endfor %}
-              </select>
-            </div>
+            <input type="hidden" name="start_date" value="{{ current_start_date }}">
+            <input type="hidden" name="end_date" value="{{ current_end_date }}">
+            <input type="hidden" name="preset" value="{{ current_preset }}">
 
-            <div class="filter-controls">
-                <div class="date-inputs">
-                    <label for="start_date">From:</label>
-                    <input type="date" id="start_date" name="start_date" value="{{ current_start_date }}">
-                    <label for="end_date">To:</label>
-                    <input type="date" id="end_date" name="end_date" value="{{ current_end_date }}">
-                    <button type="submit" class="btn btn-filter">Filter Dates</button>
-                    {# Clear link removes date params but keeps sort #}
-                    <a href="{{ url_for('list_articles', sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile) }}" class="btn btn-clear">Clear Dates</a>
+<div class="form-row form-section">
+                <div class="profile-filter">
+                     <label for="feed_profile_select">Profile:</label>
+                     {# Use JS to submit form on change #}
+                     <select name="feed_profile" id="feed_profile_select" onchange="this.form.submit()">
+                         <option value="" {% if not current_feed_profile %}selected{% endif %}>All Profiles</option>
+                         {% for profile in available_profiles %}
+                             <option value="{{ profile }}" {% if current_feed_profile == profile %}selected{% endif %}>{{ profile }}</option>
+                         {% endfor %}
+                     </select>
                 </div>
-                <div class="preset-buttons">
-                    {% set presets = {'yesterday': 'Yesterday', 'last_week': 'Last Week', 'last_30d': 'Last 30d', 'last_3m': 'Last 3mo', 'last_12m': 'Last 12mo'} %}
-                    {% for key, label in presets.items() %}
-                        <a href="{{ url_for('list_articles', preset=key, sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile) }}"
-                           class="btn btn-preset {{ 'active' if current_preset == key else '' }}">{{ label }}</a>
-                    {% endfor %}
+
+                <div class="search-filter">
+                    <input type="search" name="search" id="search_box" placeholder="Search title & content..." value="{{ current_search_term }}">
+                    <button type="submit" class="btn btn-search" title="Search">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" /></svg>
+                    </button>
+                     {# Optional: Clear Search Link #}
+                     {% if current_search_term %}
+                     <a href="{{ url_for('list_articles', page=1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}" class="btn btn-clear-search" title="Clear Search">×</a>
+                     {% endif %}
                 </div>
             </div>
 
-            <div class="sort-controls">
+             {# --- Collapsible Date Filter Section --- #}
+            <div class="form-section">
+                <button type="button" class="date-filter-toggle" onclick="toggleDateFilters()">
+                    Date Filters <span class="toggle-icon">+</span>
+                </button>
+                <div id="date-filter-content" class="date-filter-content" style="display: none;"> {# Initially hidden #}
+                    <div class="date-inputs">
+                         <label for="start_date">From:</label>
+                         <input type="date" id="start_date" name="start_date" value="{{ current_start_date }}">
+                         <label for="end_date">To:</label>
+                         <input type="date" id="end_date" name="end_date" value="{{ current_end_date }}">
+                         {# Submit button now applies date + search + profile #}
+                         <button type="submit" class="btn btn-filter">Apply Filters</button>
+                         {# Clear link only clears dates, keeps sort/profile/search #}
+                         <a href="{{ url_for('list_articles', sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term) }}" class="btn btn-clear">Clear Dates</a>
+                    </div>
+                    <div class="preset-buttons">
+                        {% set presets = {'yesterday': 'Yesterday', 'last_week': 'Last Week', 'last_30d': 'Last 30d', 'last_3m': 'Last 3mo', 'last_12m': 'Last 12mo'} %}
+                        {% for key, label in presets.items() %}
+                            {# Preset links preserve sort/profile/search #}
+                            <a href="{{ url_for('list_articles', preset=key, sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term) }}"
+                               class="btn btn-preset {{ 'active' if current_preset == key else '' }}">{{ label }}</a>
+                        {% endfor %}
+                    </div>
+                </div> {# End #date-filter-content #}
+            </div>
+
+            {# --- Sort Controls Section --- #}
+            <div class="sort-controls form-section">
                 Sort by:
                 {% set sort_fields = {'published_date': 'Published Date', 'impact_score': 'Impact Score'} %}
                 {% for field, label in sort_fields.items() %}
                     {% set is_active = (current_sort_by == field) %}
                     {% set next_direction = 'asc' if (is_active and current_direction == 'desc') else 'desc' %}
-                    {# Sorting links now need to preserve date filters #}
-                    <a href="{{ url_for('list_articles', page=1, sort_by=field, direction=next_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}"
-                       class="sort-link {{ 'active' if is_active else '' }}">
-                        {{ label }}
-                        {% if is_active %}<span class="sort-indicator">{{ '▲' if current_direction == 'asc' else '▼' }}</span>{% endif %}
-                    </a>
+                    {# Sorting links preserve date/profile/search #}
+                    <a href="{{ url_for('list_articles', page=1, sort_by=field, direction=next_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
+                       class="sort-link {{ 'active' if is_active else '' }}">{{ label }} {% if is_active %}<span class="sort-indicator">{{ '▲' if current_direction == 'asc' else '▼' }}</span>{% endif %}</a>
                 {% endfor %}
             </div>
         </form> {# End Form #}
@@ -131,25 +153,41 @@
         {# --- PAGINATION CONTROLS --- #}
         {% if total_pages > 1 %}
         <div class="pagination">
-            {# Previous Page Link - must include sort AND date filters #}
+             {# *** Update Pagination Links to include search *** #}
             {% if page > 1 %}
-                <a href="{{ url_for('list_articles', page=page-1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}" class="page-link prev">« Previous</a>
-            {% else %}
-                <span class="page-link disabled prev">« Previous</span>
-            {% endif %}
-
-            {# Page Info #}
+                <a href="{{ url_for('list_articles', page=page-1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}" class="page-link prev">« Previous</a>
+            {% else %} <span class="page-link disabled prev">« Previous</span> {% endif %}
             <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
-
-            {# Next Page Link - must include sort AND date filters #}
             {% if page < total_pages %}
-                <a href="{{ url_for('list_articles', page=page+1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}" class="page-link next">Next »</a>
-            {% else %}
-                <span class="page-link disabled next">Next »</span>
-            {% endif %}
+                <a href="{{ url_for('list_articles', page=page+1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}" class="page-link next">Next »</a>
+            {% else %} <span class="page-link disabled next">Next »</span> {% endif %}
         </div>
         {% endif %}
+        {# --- END PAGINATION CONTROLS --- #}
 
-    </div>
+    </div> {# End container #}
+
+    {# --- Simple Inline JS for Toggle --- #}
+    <script>
+        function toggleDateFilters() {
+            var content = document.getElementById('date-filter-content');
+            var icon = document.querySelector('.date-filter-toggle .toggle-icon');
+            if (content.style.display === 'none' || content.style.display === '') {
+                content.style.display = 'block'; // Or 'flex' if using flexbox inside
+                icon.textContent = '-';
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '+';
+            }
+        }
+        // Optional: Initially open if dates are set
+        document.addEventListener('DOMContentLoaded', function() {
+            var startDate = document.getElementById('start_date').value;
+            var endDate = document.getElementById('end_date').value;
+            if (startDate || endDate) {
+                 toggleDateFilters(); // Open if dates are present on load
+            }
+        });
+    </script>
 </body>
 </html>

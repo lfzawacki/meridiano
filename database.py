@@ -17,23 +17,24 @@ def init_db():
     """Initializes the database tables if they don't exist."""
     conn = get_db_connection()
     cursor = conn.cursor()
+    conn.execute('PRAGMA foreign_keys = ON')
 
     # Articles Table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS articles (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY AUTOINCREMENT, /* id is alias for rowid */
         url TEXT UNIQUE NOT NULL,
         title TEXT,
         published_date DATETIME,
         feed_source TEXT,
         fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         raw_content TEXT,
-        processed_content TEXT, -- Summary or key points
-        embedding TEXT,         -- Store embedding as JSON string
+        processed_content TEXT,
+        embedding TEXT,
         processed_at DATETIME,
-        cluster_id INTEGER       -- Optional: store cluster assignment
-        impact_score INTEGER
-        image_url TEXT
+        cluster_id INTEGER,
+        impact_score INTEGER,
+        image_url TEXT,
         feed_profile TEXT NOT NULL DEFAULT 'default'
     )
     ''')
@@ -41,15 +42,44 @@ def init_db():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_articles_processed_at ON articles (processed_at)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_articles_published_date ON articles (published_date)')
 
-    try:
-        cursor.execute("ALTER TABLE articles ADD COLUMN feed_profile TEXT NOT NULL DEFAULT 'default'")
-        conn.commit()
-        print("Added 'feed_profile' column to articles table.")
-    except sqlite3.OperationalError as e:
-        if "duplicate column name" in str(e): pass
-        else: raise e
-    # Add index
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_articles_feed_profile ON articles (feed_profile)')
+   # --- FTS5 Virtual Table ---
+    # Create the virtual table to index title and raw_content from articles
+    # content='' means it doesn't store the content itself, only index
+    # content_rowid='id' links the FTS rowid to the articles table id column
+    cursor.execute('''
+    CREATE VIRTUAL TABLE IF NOT EXISTS articles_fts USING fts5(
+        title,
+        raw_content,
+        content='articles',
+        content_rowid='id'
+    )
+    ''')
+
+    # --- Triggers to keep FTS table synchronized ---
+    # After inserting into articles, insert into articles_fts
+    cursor.execute('''
+    CREATE TRIGGER IF NOT EXISTS articles_ai AFTER INSERT ON articles BEGIN
+        INSERT INTO articles_fts (rowid, title, raw_content)
+        VALUES (new.id, new.title, new.raw_content);
+    END;
+    ''')
+
+    # Before deleting from articles, delete from articles_fts
+    # Need old.id to identify the row in articles_fts
+    cursor.execute('''
+    CREATE TRIGGER IF NOT EXISTS articles_ad BEFORE DELETE ON articles BEGIN
+        DELETE FROM articles_fts WHERE rowid=old.id;
+    END;
+    ''')
+
+    # After updating articles, update articles_fts
+    cursor.execute('''
+    CREATE TRIGGER IF NOT EXISTS articles_au AFTER UPDATE ON articles BEGIN
+        UPDATE articles_fts SET title=new.title, raw_content=new.raw_content
+        WHERE rowid=old.id;
+    END;
+    ''')
+    # --- End FTS Setup ---
 
     # Briefs Table
     cursor.execute('''
@@ -57,37 +87,11 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         brief_markdown TEXT NOT NULL,
-        contributing_article_ids TEXT -- Store list of article IDs as JSON string
+        contributing_article_ids TEXT
         feed_profile TEXT NOT NULL DEFAULT 'default'
     )
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_briefs_generated_at ON briefs (generated_at)')
-
-    try:
-        cursor.execute("ALTER TABLE briefs ADD COLUMN feed_profile TEXT NOT NULL DEFAULT 'default'")
-        conn.commit()
-        print("Added 'feed_profile' column to briefs table.")
-    except sqlite3.OperationalError as e:
-        if "duplicate column name" in str(e): pass
-        else: raise e
-
-    try:
-        cursor.execute('ALTER TABLE articles ADD COLUMN impact_score INTEGER')
-        conn.commit()
-        print("Added 'impact_score' column to articles table.")
-    except sqlite3.OperationalError as e:
-        if "duplicate column name" in str(e):
-            pass # Column already exists, ignore
-        else:
-            raise e # Raise other operational errors
-
-    try:
-        cursor.execute('ALTER TABLE articles ADD COLUMN image_url TEXT')
-        conn.commit()
-        print("Added 'image_url' column to articles table.")
-    except sqlite3.OperationalError as e:
-        if "duplicate column name" in str(e): pass # Column already exists
-        else: raise e
 
     conn.commit()
     conn.close()
@@ -137,72 +141,98 @@ def get_article_by_id(article_id):
     conn.close()
     return article_data
 
-def _build_article_filter_clause(start_date=None, end_date=None, feed_profile=None, search_term=None): # Added search_term
-    """Helper to build WHERE clauses including date, profile, and search filters."""
+# --- Retrieval Functions ---
+# Helper no longer needs to build search clause, just filters
+def _build_article_filter_clause(start_date=None, end_date=None, feed_profile=None):
+    """Helper for date and profile WHERE clauses (search handled separately)."""
     where_clauses = []
     params = []
-
-    # Date filters
     if start_date:
-        where_clauses.append("date(published_date) >= ?")
+        where_clauses.append("articles.date(published_date) >= ?") # Qualify column
         params.append(str(start_date))
     if end_date:
-        where_clauses.append("date(published_date) <= ?")
+        where_clauses.append("articles.date(published_date) <= ?") # Qualify column
         params.append(str(end_date))
-
-    # Profile filter
-    if feed_profile: # Filter by profile if provided
-        where_clauses.append("feed_profile = ?")
+    if feed_profile:
+        where_clauses.append("articles.feed_profile = ?") # Qualify column
         params.append(feed_profile)
 
-    # Search Filter
-    if search_term:
-        # Add clauses for title OR raw_content LIKE search_term
-        # Use parentheses for correct OR precedence
-        where_clauses.append("(title LIKE ? OR raw_content LIKE ?)")
-        # Add the search term twice to the params list, with wildcards
-        like_pattern = f"%{search_term}%"
-        params.append(like_pattern)
-        params.append(like_pattern)
-
-    where_string = " AND ".join(where_clauses) if where_clauses else "1=1" # 1=1 ensures valid SQL if no filters
+    where_string = " AND ".join(where_clauses) if where_clauses else "1=1"
     return where_string, params
 
 def get_all_articles(page=1, per_page=25,
                      sort_by='published_date', direction='desc',
-                     start_date=None, end_date=None, feed_profile=None, search_term=None): # Added search_term
-    """ Fetches articles, allowing sorting, date, profile, and search filtering. """
+                     start_date=None, end_date=None, feed_profile=None, search_term=None):
+    """ Fetches articles, using FTS5 MATCH for searching. """
     conn = get_db_connection()
     cursor = conn.cursor()
     offset = (page - 1) * per_page
-    allowed_sort_columns = {'published_date': 'published_date', 'impact_score': 'impact_score', 'fetched_at': 'fetched_at'}
-    db_sort_column = allowed_sort_columns.get(sort_by, 'published_date')
-    db_direction = 'ASC' if direction.lower() == 'asc' else 'DESC'
-    order_by_clause = f"ORDER BY {db_sort_column} {db_direction}, id DESC"
 
-    where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile, search_term)
+    # --- Build Base WHERE clause (excluding search) ---
+    where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile)
+
+    # --- Add FTS Search Condition ---
+    search_params = []
+    if search_term:
+        # Append FTS condition. articles.id maps to FTS rowid.
+        where_string += " AND articles.id IN (SELECT rowid FROM articles_fts WHERE articles_fts MATCH ?)"
+        search_params.append(search_term) # Add the search term itself for MATCH
+        # Consider adding ranking here if sorting by relevance is desired when searching
+        # e.g., JOIN with articles_fts and ORDER BY bm25(articles_fts) DESC
+    # --- End FTS Search ---
+
+    # --- Sorting ---
+    allowed_sort_columns = {'published_date': 'articles.published_date', 'impact_score': 'articles.impact_score', 'fetched_at': 'articles.fetched_at'}
+    # Add relevance sorting if search term is present? For now, keep standard sort.
+    db_sort_column = allowed_sort_columns.get(sort_by, 'articles.published_date') # Qualify columns
+    db_direction = 'ASC' if direction.lower() == 'asc' else 'DESC'
+    # Qualify tie-breaker column
+    order_by_clause = f"ORDER BY {db_sort_column} {db_direction}, articles.id DESC"
+    # --- End Sorting ---
 
     sql = f'''
-    SELECT id, title, url, feed_source, published_date, impact_score,
-    processed_content, image_url, feed_profile
+    SELECT articles.id, articles.title, articles.url, articles.feed_source, articles.processed_content,
+           articles.published_date, articles.impact_score, articles.image_url, articles.feed_profile
     FROM articles
     WHERE {where_string}
     {order_by_clause}
     LIMIT ? OFFSET ?
     '''
-    final_params = filter_params + [per_page, offset]
+
+    # Combine filter params, search params, and pagination params IN ORDER
+    final_params = filter_params + search_params + [per_page, offset]
+
+    # print(f"DEBUG SQL: {sql}")
+    # print(f"DEBUG PARAMS: {final_params}")
     cursor.execute(sql, final_params)
     articles = cursor.fetchall()
     conn.close()
     return articles
 
-def get_total_article_count(start_date=None, end_date=None, feed_profile=None, search_term=None): # Added search_term
-    """ Returns total count of articles, optionally filtered by date, profile, and search. """
+def get_total_article_count(start_date=None, end_date=None, feed_profile=None, search_term=None):
+    """ Returns total count of articles, using FTS5 MATCH for searching. """
     conn = get_db_connection()
     cursor = conn.cursor()
-    where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile, search_term)
+
+    # --- Build Base WHERE clause (excluding search) ---
+    where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile)
+
+    # --- Add FTS Search Condition ---
+    search_params = []
+    if search_term:
+        where_string += " AND articles.id IN (SELECT rowid FROM articles_fts WHERE articles_fts MATCH ?)"
+        search_params.append(search_term)
+    # --- End FTS Search ---
+
+    # Need to query the main table to apply non-FTS filters correctly
     sql = f'SELECT COUNT(*) FROM articles WHERE {where_string}'
-    cursor.execute(sql, filter_params)
+
+    # Combine filter params and search params IN ORDER
+    final_params = filter_params + search_params
+
+    # print(f"DEBUG COUNT SQL: {sql}")
+    # print(f"DEBUG COUNT PARAMS: {final_params}")
+    cursor.execute(sql, final_params)
     count = cursor.fetchone()[0]
     conn.close()
     return count

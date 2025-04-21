@@ -47,7 +47,6 @@ Analyzed News Clusters (Most significant first):
 {cluster_analyses_text}
 """
 
-
 # --- Processing Settings ---
 # How many hours back to look for articles when generating a brief
 BRIEFING_ARTICLE_LOOKBACK_HOURS = 24

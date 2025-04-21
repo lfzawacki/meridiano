@@ -20,7 +20,7 @@ RSS_FEEDS = [
 PROMPT_ARTICLE_SUMMARY = "Summarize the key points of this news article objectively in 2-4 sentences. Identify the main topics covered.\n\nArticle:\n{article_content}"
 
 # Used in rate_articles (operates globally, so uses default)
-PROMPT_IMPACT_RATING = f"""Analyze the following article summary and estimate its overall impact. Consider factors like newsworthiness, originality, geographic scope (local vs global), number of people affected, severity, and potential long-term consequences. Be extremely critical and conservative when assigning scores—higher scores should reflect truly exceptional or rare events.
+PROMPT_IMPACT_RATING = """Analyze the following article summary and estimate its overall impact. Consider factors like newsworthiness, originality, geographic scope (local vs global), number of people affected, severity, and potential long-term consequences. Be extremely critical and conservative when assigning scores—higher scores should reflect truly exceptional or rare events.
 
 Rate the impact on a scale of 1 to 10, using these guidelines:
 

@@ -225,13 +225,13 @@ def scrape_articles(feed_profile, rss_feeds): # Added params
     print(f"--- Scraping Finished [{feed_profile}]. Added {new_articles_count} new articles. ---")
 
 
-def process_articles(effective_config):
+def process_articles(feed_profile, effective_config):
     """Processes unprocessed articles: summarizes and generates embeddings."""
     print("\n--- Starting Article Processing ---")
     chat_model = getattr(effective_config, 'DEEPSEEK_CHAT_MODEL', 'deepseek-chat') # Get model from effective config
     summary_prompt_template = getattr(effective_config, 'PROMPT_ARTICLE_SUMMARY', config.PROMPT_ARTICLE_SUMMARY)
 
-    unprocessed = database.get_unprocessed_articles(1000)
+    unprocessed = database.get_unprocessed_articles(feed_profile, 1000)
     processed_count = 0
     if not unprocessed:
         print("No new articles to process.")
@@ -272,7 +272,7 @@ def process_articles(effective_config):
 
     print(f"--- Processing Finished. Processed {processed_count} articles. ---")
 
-def rate_articles(effective_config):
+def rate_articles(feed_profile, effective_config):
     """Rates the impact of processed articles using an LLM."""
     print("\n--- Starting Article Impact Rating ---")
     if not client:
@@ -282,7 +282,7 @@ def rate_articles(effective_config):
     chat_model = getattr(effective_config, 'DEEPSEEK_CHAT_MODEL', 'deepseek-chat')
     rating_prompt_template = getattr(effective_config, 'PROMPT_IMPACT_RATING', config.PROMPT_IMPACT_RATING)
 
-    unrated = database.get_unrated_articles(1000)
+    unrated = database.get_unrated_articles(feed_profile, 1000)
     rated_count = 0
     if not unrated:
         print("No new articles to rate.")
@@ -544,8 +544,8 @@ if __name__ == "__main__":
         print("\n>>> Running ALL stages <<<")
         if current_rss_feeds: scrape_articles(feed_profile_name, current_rss_feeds)
         else: print("Skipping scrape stage: No RSS_FEEDS found for profile.")
-        process_articles(effective_config)
-        rate_articles(effective_config)
+        process_articles(feed_profile_name, effective_config)
+        rate_articles(feed_profile_name, effective_config)
         if current_rss_feeds: generate_brief(feed_profile_name, effective_config)
         else: print("Skipping generate stage: No RSS_FEEDS found for profile.")
     else:
@@ -556,10 +556,10 @@ if __name__ == "__main__":
             else: print(f"Cannot run scrape stage: No RSS_FEEDS found for profile '{feed_profile_name}'.")
         if args.process:
             print("\n>>> Running ONLY Process Articles stage <<<")
-            process_articles(effective_config)
+            process_articles(feed_profile_name, effective_config)
         if args.rate:
             print("\n>>> Running ONLY Rate Articles stage <<<")
-            rate_articles(effective_config)
+            rate_articles(feed_profile_name, effective_config)
         if args.generate:
             if current_rss_feeds: # Check if feeds exist, as brief relies on articles from them
                 print(f"\n>>> Running ONLY Generate Brief stage [{feed_profile_name}] <<<")

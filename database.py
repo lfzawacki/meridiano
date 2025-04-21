@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import config_base as config
 
 DB_FILE = config.DATABASE_FILE
+ARTICLES_PER_PAGE_DEFAULT = 25
 
 def get_db_connection():
     """Establishes a connection to the SQLite database."""
@@ -87,7 +88,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         brief_markdown TEXT NOT NULL,
-        contributing_article_ids TEXT
+        contributing_article_ids TEXT,
         feed_profile TEXT NOT NULL DEFAULT 'default'
     )
     ''')
@@ -97,7 +98,7 @@ def init_db():
     conn.close()
     print("Database initialized.")
 
-def get_unrated_articles(limit=50):
+def get_unrated_articles(feed_profile, limit=50):
     """Gets processed articles that haven't been rated yet."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -107,9 +108,10 @@ def get_unrated_articles(limit=50):
     WHERE processed_content IS NOT NULL AND processed_content != ''
       AND processed_at IS NOT NULL
       AND impact_score IS NULL
+      AND feed_profile = ?
     ORDER BY processed_at DESC
     LIMIT ?
-    ''', (limit,))
+    ''', (feed_profile, limit,))
     articles = cursor.fetchall()
     conn.close()
     return articles
@@ -148,22 +150,28 @@ def _build_article_filter_clause(start_date=None, end_date=None, feed_profile=No
     where_clauses = []
     params = []
     if start_date:
-        where_clauses.append("articles.date(published_date) >= ?") # Qualify column
+        # Use date() without table qualifier inside the function
+        where_clauses.append("date(published_date) >= ?")
         params.append(str(start_date))
     if end_date:
-        where_clauses.append("articles.date(published_date) <= ?") # Qualify column
+        # Use date() without table qualifier inside the function
+        where_clauses.append("date(published_date) <= ?")
         params.append(str(end_date))
     if feed_profile:
-        where_clauses.append("articles.feed_profile = ?") # Qualify column
+        # Qualify this one as it's a direct column comparison
+        where_clauses.append("articles.feed_profile = ?")
         params.append(feed_profile)
 
     where_string = " AND ".join(where_clauses) if where_clauses else "1=1"
     return where_string, params
 
-def get_all_articles(page=1, per_page=25,
+def get_all_articles(page=1, per_page=ARTICLES_PER_PAGE_DEFAULT,
                      sort_by='published_date', direction='desc',
                      start_date=None, end_date=None, feed_profile=None, search_term=None):
-    """ Fetches articles, using FTS5 MATCH for searching. """
+    """
+    Fetches articles, using FTS5 MATCH for searching and bm25() for relevance sorting
+    when a search term is provided. Otherwise, uses standard column sorting.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     offset = (page - 1) * per_page
@@ -171,70 +179,127 @@ def get_all_articles(page=1, per_page=25,
     # --- Build Base WHERE clause (excluding search) ---
     where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile)
 
-    # --- Add FTS Search Condition ---
-    search_params = []
+    sql = ""
+    final_params = []
+    order_by_clause = "" # Initialize order by
+
+    # --- Determine Query Structure and Sorting based on Search ---
     if search_term:
-        # Append FTS condition. articles.id maps to FTS rowid.
-        where_string += " AND articles.id IN (SELECT rowid FROM articles_fts WHERE articles_fts MATCH ?)"
-        search_params.append(search_term) # Add the search term itself for MATCH
-        # Consider adding ranking here if sorting by relevance is desired when searching
-        # e.g., JOIN with articles_fts and ORDER BY bm25(articles_fts) DESC
-    # --- End FTS Search ---
+        # --- SEARCH ACTIVE: Use JOIN and ORDER BY relevance ---
+        print("INFO: Search term active, using FTS JOIN and relevance sorting.")
 
-    # --- Sorting ---
-    allowed_sort_columns = {'published_date': 'articles.published_date', 'impact_score': 'articles.impact_score', 'fetched_at': 'articles.fetched_at'}
-    # Add relevance sorting if search term is present? For now, keep standard sort.
-    db_sort_column = allowed_sort_columns.get(sort_by, 'articles.published_date') # Qualify columns
-    db_direction = 'ASC' if direction.lower() == 'asc' else 'DESC'
-    # Qualify tie-breaker column
-    order_by_clause = f"ORDER BY {db_sort_column} {db_direction}, articles.id DESC"
-    # --- End Sorting ---
+        # Add FTS MATCH condition to the base WHERE clause
+        where_string += " AND articles_fts MATCH ?"
+        # Add the search term to the filter params (comes after date/profile params)
+        filter_params.append(search_term)
 
-    sql = f'''
-    SELECT articles.id, articles.title, articles.url, articles.feed_source, articles.processed_content,
-           articles.published_date, articles.impact_score, articles.image_url, articles.feed_profile
-    FROM articles
-    WHERE {where_string}
-    {order_by_clause}
-    LIMIT ? OFFSET ?
-    '''
+        # Define relevance-based ORDER BY
+        # Using bm25() for ranking. Higher score is better (more relevant).
+        # Add secondary sort criteria for tie-breaking
+        order_by_clause = "ORDER BY bm25(articles_fts) DESC, articles.published_date DESC, articles.id DESC"
 
-    # Combine filter params, search params, and pagination params IN ORDER
-    final_params = filter_params + search_params + [per_page, offset]
+        # Construct the JOIN query
+        sql = f'''
+        SELECT articles.id, articles.title, articles.url, articles.feed_source,
+               articles.published_date, articles.impact_score, articles.image_url,
+               articles.feed_profile, articles.processed_content
+        FROM articles
+        JOIN articles_fts ON articles.id = articles_fts.rowid
+        WHERE {where_string}
+        {order_by_clause}
+        LIMIT ? OFFSET ?
+        '''
+        # Params order: filter_params (date, profile, search), pagination_params
+        final_params = filter_params + [per_page, offset]
 
-    # print(f"DEBUG SQL: {sql}")
-    # print(f"DEBUG PARAMS: {final_params}")
+    else:
+        # --- NO SEARCH: Use standard query and user-selected sorting ---
+        print("INFO: No search term, using standard sorting.")
+
+        # Standard Sorting logic (as before, using qualified names)
+        allowed_sort_columns = {
+            'published_date': 'articles.published_date',
+            'impact_score': 'articles.impact_score',
+            'fetched_at': 'articles.fetched_at'
+        }
+        db_sort_column = allowed_sort_columns.get(sort_by, 'articles.published_date')
+        db_direction = 'ASC' if direction.lower() == 'asc' else 'DESC'
+        order_by_clause = f"ORDER BY {db_sort_column} {db_direction}, articles.id DESC"
+
+        # Construct the standard query (no JOIN needed)
+        sql = f'''
+        SELECT articles.id, articles.title, articles.url, articles.feed_source,
+               articles.published_date, articles.impact_score, articles.image_url,
+               articles.feed_profile, articles.processed_content
+        FROM articles
+        WHERE {where_string}
+        {order_by_clause}
+        LIMIT ? OFFSET ?
+        '''
+        # Params order: filter_params (date, profile), pagination_params
+        final_params = filter_params + [per_page, offset]
+    # --- End Conditional Query Building ---
+
     cursor.execute(sql, final_params)
     articles = cursor.fetchall()
     conn.close()
     return articles
 
 def get_total_article_count(start_date=None, end_date=None, feed_profile=None, search_term=None):
-    """ Returns total count of articles, using FTS5 MATCH for searching. """
+    """
+    Returns total count of articles, using FTS5 MATCH for searching via JOIN.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # --- Build Base WHERE clause (excluding search) ---
-    where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile)
+    # Build base WHERE clause for non-FTS columns (date, profile) on articles table
+    where_string_base, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile)
 
-    # --- Add FTS Search Condition ---
-    search_params = []
+    sql = ""
+    final_params = []
+
     if search_term:
-        where_string += " AND articles.id IN (SELECT rowid FROM articles_fts WHERE articles_fts MATCH ?)"
-        search_params.append(search_term)
-    # --- End FTS Search ---
+        # --- SEARCH ACTIVE: Use JOIN query for counting ---
+        print("INFO (Count): Search term active, using FTS JOIN for count.")
 
-    # Need to query the main table to apply non-FTS filters correctly
-    sql = f'SELECT COUNT(*) FROM articles WHERE {where_string}'
+        # Append the MATCH condition, applied to the joined fts table
+        # Make sure the base string correctly references articles.column if needed
+        where_string_fts = where_string_base + " AND articles_fts MATCH ?"
 
-    # Combine filter params and search params IN ORDER
-    final_params = filter_params + search_params
+        # Construct the JOIN query for counting
+        # We count articles.id to be specific, though COUNT(*) would likely work too
+        sql = f'''
+        SELECT COUNT(articles.id)
+        FROM articles
+        JOIN articles_fts ON articles.id = articles_fts.rowid
+        WHERE {where_string_fts}
+        '''
+        # Params order: filter_params (date, profile) + search_term
+        final_params = filter_params + [search_term]
 
+    else:
+        # --- NO SEARCH: Use standard count query ---
+        print("INFO (Count): No search term, using standard count.")
+
+        # Query only the articles table
+        sql = f'SELECT COUNT(*) FROM articles WHERE {where_string_base}'
+        # Params: filter_params only
+        final_params = filter_params
+
+    # --- Execute Query ---
     # print(f"DEBUG COUNT SQL: {sql}")
     # print(f"DEBUG COUNT PARAMS: {final_params}")
-    cursor.execute(sql, final_params)
-    count = cursor.fetchone()[0]
-    conn.close()
+    try:
+        cursor.execute(sql, final_params)
+        count = cursor.fetchone()[0]
+    except Exception as e:
+        print(f"ERROR executing count query: {e}")
+        print(f"SQL: {sql}")
+        print(f"PARAMS: {final_params}")
+        count = 0 # Return 0 on error to prevent further issues
+    finally:
+        conn.close()
+
     return count
 
 def add_article(url, title, published_date, feed_source, raw_content, feed_profile, image_url=None): # Added image_url param
@@ -254,16 +319,17 @@ def add_article(url, title, published_date, feed_source, raw_content, feed_profi
     finally:
         conn.close()
 
-def get_unprocessed_articles(limit=50):
+def get_unprocessed_articles(feed_profile, limit=50):
     """Gets articles that haven't been processed yet."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
     SELECT id, title, url, raw_content FROM articles
     WHERE processed_at IS NULL AND raw_content IS NOT NULL AND raw_content != ''
+    AND feed_profile = ?
     ORDER BY fetched_at DESC
     LIMIT ?
-    ''', (limit,))
+    ''', (feed_profile, limit,))
     articles = cursor.fetchall()
     conn.close()
     return articles

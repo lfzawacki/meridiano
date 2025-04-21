@@ -1,6 +1,6 @@
 # simple-meridian/app.py
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, abort
 from markupsafe import Markup
 import markdown
 from datetime import datetime, timedelta, date
@@ -54,7 +54,7 @@ def view_brief(brief_id):
     brief_content_html = Markup(markdown.markdown(brief_data['brief_markdown'], extensions=['fenced_code']))
     generation_time = format_datetime(brief_data['generated_at'], '%Y-%m-%d %H:%M:%S UTC')
 
-    return render_template('brief.html', # Use a new template for viewing
+    return render_template('view_brief.html', # Use a new template for viewing
                            brief_id=brief_data['id'],
                            brief_content=brief_content_html,
                            generation_time=generation_time)

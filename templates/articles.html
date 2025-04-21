@@ -1,174 +1,243 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Articles {% if current_feed_profile %}[{{ current_feed_profile }}]{% endif %}{% if current_search_term %} | Search: {{ current_search_term }}{% endif %} (Page {{ page }}) - Meridian</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <div class="navigation">
-             <a href="{{ url_for('index', feed_profile=current_feed_profile) }}">« View Briefings List</a>
-        </div>
-
-        <h1>
-          Articles {% if current_feed_profile %}<span class="profile-badge">{{ current_feed_profile }}</span>{% endif %}
-        </h1>
-        {% if total_articles > 0 %}
-          <p>Showing articles {{ (page - 1) * per_page + 1 }} - {{ [page * per_page, total_articles] | min }} of {{ total_articles }} total (matching filters).</p>
-        {% else %}
-          <p>No articles found matching the current filters.</p>
-        {% endif %}
-
-        <form method="GET" action="{{ url_for('list_articles') }}" class="filter-sort-form">
-            {# Preserve sorting state when submitting date filters #}
-            <input type="hidden" name="sort_by" value="{{ current_sort_by }}">
-            <input type="hidden" name="direction" value="{{ current_direction }}">
-
-            <input type="hidden" name="start_date" value="{{ current_start_date }}">
-            <input type="hidden" name="end_date" value="{{ current_end_date }}">
-            <input type="hidden" name="preset" value="{{ current_preset }}">
-
-<div class="form-row form-section">
-                <div class="profile-filter">
-                     <label for="feed_profile_select">Profile:</label>
-                     {# Use JS to submit form on change #}
-                     <select name="feed_profile" id="feed_profile_select" onchange="this.form.submit()">
-                         <option value="" {% if not current_feed_profile %}selected{% endif %}>All Profiles</option>
-                         {% for profile in available_profiles %}
-                             <option value="{{ profile }}" {% if current_feed_profile == profile %}selected{% endif %}>{{ profile }}</option>
-                         {% endfor %}
-                     </select>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Articles
+            {% if current_feed_profile %}[{{ current_feed_profile }}]{% endif %}
+            {% if current_search_term %}| Search: {{ current_search_term }}{% endif %}
+        (Page {{ page }}) - Meridian</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body>
+        <div class="container">
+            <div class="navigation">
+                <a href="{{ url_for('index', feed_profile=current_feed_profile) }}">« View Briefings List</a>
+            </div>
+            <h1>
+                Articles
+                {% if current_feed_profile %}<span class="profile-badge">{{ current_feed_profile }}</span>{% endif %}
+            </h1>
+            {% if total_articles > 0 %}
+                <p>
+                    Showing articles {{ (page - 1) * per_page + 1 }} - {{ [page * per_page, total_articles] | min }} of {{ total_articles }} total (matching filters).
+                </p>
+            {% else %}
+                <p>No articles found matching the current filters.</p>
+            {% endif %}
+            <form method="GET"
+                  action="{{ url_for("list_articles") }}"
+                  class="filter-sort-form">
+                {# Preserve sorting state when submitting date filters #}
+                <input type="hidden" name="sort_by" value="{{ current_sort_by }}">
+                <input type="hidden" name="direction" value="{{ current_direction }}">
+                <input type="hidden" name="start_date" value="{{ current_start_date }}">
+                <input type="hidden" name="end_date" value="{{ current_end_date }}">
+                <input type="hidden" name="preset" value="{{ current_preset }}">
+                <div class="form-row form-section">
+                    <div class="profile-filter">
+                        <label for="feed_profile_select">Profile:</label>
+                        {# Use JS to submit form on change #}
+                        <select name="feed_profile"
+                                id="feed_profile_select"
+                                onchange="this.form.submit()">
+                            <option value="" {% if not current_feed_profile %}selected{% endif %}>All Profiles</option>
+                            {% for profile in available_profiles %}
+                                <option value="{{ profile }}"
+                                        {% if current_feed_profile == profile %}selected{% endif %}>
+                                    {{ profile }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="search-filter">
+                        <input type="search"
+                               name="search"
+                               id="search_box"
+                               placeholder="Search title & content..."
+                               value="{{ current_search_term }}">
+                        <button type="submit" class="btn btn-search" title="Search">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 viewBox="0 0 16 16"
+                                 fill="currentColor"
+                                 width="16"
+                                 height="16">
+                                <path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        {# Optional: Clear Search Link #}
+                        {% if current_search_term %}
+                            <a href="{{ url_for('list_articles', page=1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}"
+                               class="btn btn-clear-search"
+                               title="Clear Search">×</a>
+                        {% endif %}
+                    </div>
                 </div>
-
-                <div class="search-filter">
-                    <input type="search" name="search" id="search_box" placeholder="Search title & content..." value="{{ current_search_term }}">
-                    <button type="submit" class="btn btn-search" title="Search">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" /></svg>
+                {# --- Collapsible Date Filter Section --- #}
+                <div class="form-section">
+                    <button type="button"
+                            class="date-filter-toggle"
+                            onclick="toggleDateFilters()">
+                        Date Filters <span class="toggle-icon">+</span>
                     </button>
-                     {# Optional: Clear Search Link #}
-                     {% if current_search_term %}
-                     <a href="{{ url_for('list_articles', page=1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}" class="btn btn-clear-search" title="Clear Search">×</a>
-                     {% endif %}
-                </div>
-            </div>
-
-             {# --- Collapsible Date Filter Section --- #}
-            <div class="form-section">
-                <button type="button" class="date-filter-toggle" onclick="toggleDateFilters()">
-                    Date Filters <span class="toggle-icon">+</span>
-                </button>
-                <div id="date-filter-content" class="date-filter-content" style="display: none;"> {# Initially hidden #}
-                    <div class="date-inputs">
-                         <label for="start_date">From:</label>
-                         <input type="date" id="start_date" name="start_date" value="{{ current_start_date }}">
-                         <label for="end_date">To:</label>
-                         <input type="date" id="end_date" name="end_date" value="{{ current_end_date }}">
-                         {# Submit button now applies date + search + profile #}
-                         <button type="submit" class="btn btn-filter">Apply Filters</button>
-                         {# Clear link only clears dates, keeps sort/profile/search #}
-                         <a href="{{ url_for('list_articles', sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term) }}" class="btn btn-clear">Clear Dates</a>
-                    </div>
-                    <div class="preset-buttons">
-                        {% set presets = {'yesterday': 'Yesterday', 'last_week': 'Last Week', 'last_30d': 'Last 30d', 'last_3m': 'Last 3mo', 'last_12m': 'Last 12mo'} %}
-                        {% for key, label in presets.items() %}
-                            {# Preset links preserve sort/profile/search #}
-                            <a href="{{ url_for('list_articles', preset=key, sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term) }}"
-                               class="btn btn-preset {{ 'active' if current_preset == key else '' }}">{{ label }}</a>
-                        {% endfor %}
-                    </div>
-                </div> {# End #date-filter-content #}
-            </div>
-
-            {# --- Sort Controls Section --- #}
-            <div class="sort-controls form-section">
-                Sort by:
-                {% set sort_fields = {'published_date': 'Published Date', 'impact_score': 'Impact Score'} %}
-                {% for field, label in sort_fields.items() %}
-                    {% set is_active = (current_sort_by == field) %}
-                    {% set next_direction = 'asc' if (is_active and current_direction == 'desc') else 'desc' %}
-                    {# Sorting links preserve date/profile/search #}
-                    <a href="{{ url_for('list_articles', page=1, sort_by=field, direction=next_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
-                       class="sort-link {{ 'active' if is_active else '' }}">{{ label }} {% if is_active %}<span class="sort-indicator">{{ '▲' if current_direction == 'asc' else '▼' }}</span>{% endif %}</a>
-                {% endfor %}
-            </div>
-        </form> {# End Form #}
-
-        <ul class="article-list">
-            {% for article in articles %}
-            <li class="article-item">
-                {# --- Article Image Column --- #}
-                <div class="article-image-container">
-                    {% if article.image_url %}
-                        <img src="{{ article.image_url }}"
-                             alt="Image for {{ article.title | default('') }}"
-                             class="article-image"
-                             loading="lazy" {# Add lazy loading #}
-                             onerror="this.parentElement.style.display='none'; this.parentElement.nextElementSibling.style.display='flex';"> {# Hide container on error, show placeholder #}
-                    {% else %}
-                        {# Show placeholder immediately if no image URL #}
-                        <div class="article-image-placeholder">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="placeholder-icon"><path d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06l4.47-4.47a.75.75 0 0 1 1.06 0l3.001 3.001 1.504-1.504a.75.75 0 0 1 1.06 0l4.91 4.91V6a.75.75 0 0 0-.75-.75H3.75A.75.75 0 0 0 3 6v10.06Z"/></svg>
-                            <span>No Image</span>
+                    <div id="date-filter-content"
+                         class="date-filter-content"
+                         style="display: none">
+                        {# Initially hidden #}
+                        <div class="date-inputs">
+                            <label for="start_date">From:</label>
+                            <input type="date"
+                                   id="start_date"
+                                   name="start_date"
+                                   value="{{ current_start_date }}">
+                            <label for="end_date">To:</label>
+                            <input type="date"
+                                   id="end_date"
+                                   name="end_date"
+                                   value="{{ current_end_date }}">
+                            {# Submit button now applies date + search + profile #}
+                            <button type="submit" class="btn btn-filter">Apply Filters</button>
+                            {# Clear link only clears dates, keeps sort/profile/search #}
+                            <a href="{{ url_for('list_articles', sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term) }}"
+                               class="btn btn-clear">Clear Dates</a>
                         </div>
-                    {% endif %}
-                     {# Separate placeholder div for JS onerror scenario #}
-                     {% if article.image_url %}
-                       <div class="article-image-placeholder" style="display: none;">
-                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="placeholder-icon"><path d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06l4.47-4.47a.75.75 0 0 1 1.06 0l3.001 3.001 1.504-1.504a.75.75 0 0 1 1.06 0l4.91 4.91V6a.75.75 0 0 0-.75-.75H3.75A.75.75 0 0 0 3 6v10.06Z"/></svg>
-                           <span>No Image</span>
-                       </div>
-                     {% endif %}
+                        <div class="preset-buttons">
+                            {% set presets = {
+                                "yesterday": "Yesterday",
+                                "last_week": "Last Week",
+                                "last_30d": "Last 30d",
+                                "last_3m": "Last 3mo",
+                                "last_12m": "Last 12mo"
+                            } %}
+                            {% for key, label in presets.items() %}
+                                {# Preset links preserve sort/profile/search #}
+                                <a href="{{ url_for('list_articles', preset=key, sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term) }}"
+                                   class="btn btn-preset {{ 'active' if current_preset == key else '' }}">{{ label }}</a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {# End #date-filter-content #}
                 </div>
-                <div class="article-text-content">
-                  <span class="profile-badge list-badge">{{ article.feed_profile }}</span>
-                  {% if article.impact_score is not none %}
-                      <span class="impact-score score-{{ article.impact_score }}" title="Impact Score: {{ article.impact_score }}/10">
-                          {{ article.impact_score }}
+                {# --- Sort Controls Section --- #}
+                <div class="sort-controls form-section">
+                  {# Show relevance notice OR standard sort links #}
+                  {% if current_search_term %}
+                      <span class="relevance-notice">Results sorted by relevance.</span>
+                      {# Optionally hide standard sort links when searching #}
+                      {# You could put the standard sort links inside an {% else %} block #}
+                      {# Or keep them but make them visually less prominent #}
+                      <span style="margin-left: 10px; font-size: 0.9em; color: #6c757d;">
+                      (Clear search to use standard sorting:
+                       {% set sort_fields = {"published_date": "Date", "impact_score": "Impact"} %}
+                       {% for field, label in sort_fields.items() %}
+                          {% set is_active = (current_sort_by == field) %}
+                          <a href="{{ url_for('list_articles', page=1, sort_by=field, direction='desc', start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}"
+                             class="sort-link-disabled">{{ label }}</a>{% if not loop.last %} / {% endif %}
+                      {% endfor %}
+                      )
                       </span>
-                  {% else %}
-                      <span class="impact-score score-unknown" title="Impact Score: Not Rated">-</span>
+
+                  {% else %} {# No search term, show standard sort controls #}
+                      Sort by:
+                      {% set sort_fields = {"published_date": "Published Date", "impact_score": "Impact Score"} %}
+                      {% for field, label in sort_fields.items() %}
+                          {% set is_active = (current_sort_by == field) %}
+                          {% set next_direction = 'asc' if (is_active and current_direction == 'desc') else 'desc' %}
+                          {# Sorting links preserve date/profile (no search term here) #}
+                          <a href="{{ url_for('list_articles', page=1, sort_by=field, direction=next_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}"
+                             class="sort-link {{ 'active' if is_active else '' }}">{{ label }} {% if is_active %}<span class="sort-indicator">{{ '▲' if current_direction == 'asc' else '▼' }}</span>{% endif %}</a>
+                      {% endfor %}
                   {% endif %}
-                  <a href="{{ url_for('view_article', article_id=article['id']) }}" class="article-link">
-                      {{ article['title'] | default('Untitled Article') }}
-                  </a>
-                  <span class="article-meta">
-                       ({{ article['feed_source'] | default('Unknown Source') }} / {{ article['published_date'] | datetimeformat }})
-                  </span>
-                  <div class="article-content">
-                    {{article['processed_content_html']}}
-                  </div>
-              </li>
-              {% else %}
-                  {% if total_articles == 0 %}
-                      {# Message already shown above #}
-                  {% else %}
-                      <li>No articles found on this page.</li> {# Should only happen if page > total_pages #}
-                  {% endif %}
-              {% endfor %}
+              </div>
+            </form>
+            {# End Form #}
+            <ul class="article-list">
+                {% for article in articles %}
+                    <li class="article-item">
+                        {# --- Article Image Column --- #}
+                        <div class="article-image-container">
+                            {% if article.image_url %}
+                                <img src="{{ article.image_url }}"
+                                    alt="Image for {{ article.title | default("") }}"
+                                    class="article-image"
+                                    loading="lazy" {# Add lazy loading #}
+                                    onerror="this.parentElement.style.display='none'; this.parentElement.nextElementSibling.style.display='flex';">
+                                    {# Hide container on error, show placeholder #}
+                                {% else %}
+                                    {# Show placeholder immediately if no image URL #}
+                                    <div class="article-image-placeholder">
+                                        <svg xmlns="http://www.w3.org/2000/svg"
+                                             viewBox="0 0 24 24"
+                                             fill="currentColor"
+                                             class="placeholder-icon">
+                                            <path d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06l4.47-4.47a.75.75 0 0 1 1.06 0l3.001 3.001 1.504-1.504a.75.75 0 0 1 1.06 0l4.91 4.91V6a.75.75 0 0 0-.75-.75H3.75A.75.75 0 0 0 3 6v10.06Z" />
+                                        </svg>
+                                        <span>No Image</span>
+                                    </div>
+                                {% endif %}
+                                {# Separate placeholder div for JS onerror scenario #}
+                                {% if article.image_url %}
+                                    <div class="article-image-placeholder" style="display: none;">
+                                        <svg xmlns="http://www.w3.org/2000/svg"
+                                             viewBox="0 0 24 24"
+                                             fill="currentColor"
+                                             class="placeholder-icon">
+                                            <path d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06l4.47-4.47a.75.75 0 0 1 1.06 0l3.001 3.001 1.504-1.504a.75.75 0 0 1 1.06 0l4.91 4.91V6a.75.75 0 0 0-.75-.75H3.75A.75.75 0 0 0 3 6v10.06Z" />
+                                        </svg>
+                                        <span>No Image</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="article-text-content">
+                                <span class="profile-badge list-badge">{{ article.feed_profile }}</span>
+                                {% if article.impact_score is not none %}
+                                    <span class="impact-score score-{{ article.impact_score }}"
+                                          title="Impact Score: {{ article.impact_score }}/10">
+                                        {{ article.impact_score }}
+                                    </span>
+                                {% else %}
+                                    <span class="impact-score score-unknown" title="Impact Score: Not Rated">-</span>
+                                {% endif %}
+                                <a href="{{ url_for('view_article', article_id=article['id']) }}"
+                                   class="article-link">{{ article['title'] | default("Untitled Article") }}</a>
+                                <span class="article-meta">
+                                    ({{ article['feed_source'] | default("Unknown Source") }} / {{ article['published_date'] | datetimeformat }})
+                                </span>
+                                <div class="article-summary-list">{{ article['processed_content_html'] | safe }}</div>
+                            </div>
+                        </li>
+                    {% endfor %}
+                    {% if total_articles == 0 %}
+                        {# Message already shown above #}
+                    {% else %}
+                        <li>No articles found on this page.</li>
+                        {# Should only happen if page > total_pages #}
+                    {% endif %}
+                </ul>
+                {# --- PAGINATION CONTROLS --- #}
+                {% if total_pages > 1 %}
+                    <div class="pagination">
+                        {# *** Update Pagination Links to include search *** #}
+                        {% if page > 1 %}
+                            <a href="{{ url_for('list_articles', page=page-1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
+                               class="page-link prev">« Previous</a>
+                        {% else %}
+                            <span class="page-link disabled prev">« Previous</span>
+                        {% endif %}
+                        <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
+                        {% if page < total_pages %}
+                            <a href="{{ url_for('list_articles', page=page+1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
+                               class="page-link next">Next »</a>
+                        {% else %}
+                            <span class="page-link disabled next">Next »</span>
+                        {% endif %}
+                    </div>
+                {% endif %}
+                {# --- END PAGINATION CONTROLS --- #}
             </div>
-        </ul>
-
-        {# --- PAGINATION CONTROLS --- #}
-        {% if total_pages > 1 %}
-        <div class="pagination">
-             {# *** Update Pagination Links to include search *** #}
-            {% if page > 1 %}
-                <a href="{{ url_for('list_articles', page=page-1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}" class="page-link prev">« Previous</a>
-            {% else %} <span class="page-link disabled prev">« Previous</span> {% endif %}
-            <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
-            {% if page < total_pages %}
-                <a href="{{ url_for('list_articles', page=page+1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}" class="page-link next">Next »</a>
-            {% else %} <span class="page-link disabled next">Next »</span> {% endif %}
-        </div>
-        {% endif %}
-        {# --- END PAGINATION CONTROLS --- #}
-
-    </div> {# End container #}
-
-    {# --- Simple Inline JS for Toggle --- #}
-    <script>
+            {# End container #}
+            {# --- Simple Inline JS for Toggle --- #}
+            <script>
         function toggleDateFilters() {
             var content = document.getElementById('date-filter-content');
             var icon = document.querySelector('.date-filter-toggle .toggle-icon');
@@ -188,6 +257,6 @@
                  toggleDateFilters(); // Open if dates are present on load
             }
         });
-    </script>
-</body>
-</html>
+            </script>
+        </body>
+    </html>

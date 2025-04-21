@@ -682,3 +682,16 @@ blockquote {
     margin-right: 5px; /* Space before impact score */
     margin-left: 0;
 }
+
+.relevance-notice {
+    font-weight: bold;
+    color: #17a2b8; /* Teal color or similar */
+    font-size: 0.9em;
+}
+
+.sort-link-disabled {
+    color: #adb5bd; /* Lighter grey for disabled */
+    text-decoration: none;
+    margin-left: 5px;
+    cursor: default;
+}

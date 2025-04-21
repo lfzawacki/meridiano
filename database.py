@@ -176,8 +176,18 @@ def get_all_articles(page=1, per_page=ARTICLES_PER_PAGE_DEFAULT,
     cursor = conn.cursor()
     offset = (page - 1) * per_page
 
-    # --- Build Base WHERE clause (excluding search) ---
-    where_string, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile)
+    # --- Build Base WHERE clause (excluding search, using qualified names) ---
+    where_string_base, filter_params = _build_article_filter_clause(start_date, end_date, feed_profile)
+
+    # --- Determine Primary Sort Key (Always needed) ---
+    allowed_sort_columns = {
+        'published_date': 'articles.published_date',
+        'impact_score': 'articles.impact_score',
+        'fetched_at': 'articles.fetched_at'
+    }
+    db_sort_column = allowed_sort_columns.get(sort_by, 'articles.published_date') # Default sort
+    db_direction = 'ASC' if direction.lower() == 'asc' else 'DESC'
+    # --- End Primary Sort Determination ---
 
     sql = ""
     final_params = []
@@ -185,45 +195,39 @@ def get_all_articles(page=1, per_page=ARTICLES_PER_PAGE_DEFAULT,
 
     # --- Determine Query Structure and Sorting based on Search ---
     if search_term:
-        # --- SEARCH ACTIVE: Use JOIN and ORDER BY relevance ---
-        print("INFO: Search term active, using FTS JOIN and relevance sorting.")
+        # --- SEARCH ACTIVE: Use JOIN and COMBINED sorting ---
+        print("INFO: Search term active, sorting by user choice THEN relevance.")
 
         # Add FTS MATCH condition to the base WHERE clause
-        where_string += " AND articles_fts MATCH ?"
-        # Add the search term to the filter params (comes after date/profile params)
-        filter_params.append(search_term)
+        where_string_fts = where_string_base + " AND articles_fts MATCH ?"
+        search_params = [search_term] # Keep search param separate for clarity
 
-        # Define relevance-based ORDER BY
-        # Using bm25() for ranking. Higher score is better (more relevant).
-        # Add secondary sort criteria for tie-breaking
-        order_by_clause = "ORDER BY bm25(articles_fts) DESC, articles.published_date DESC, articles.id DESC"
+        # *** MODIFIED ORDER BY ***
+        # 1st: User selected column (date/impact) + direction
+        # 2nd: Relevance score (lower bm25 is better -> ASC)
+        # 3rd: Final deterministic tie-breaker
+        order_by_clause = f"ORDER BY {db_sort_column} {db_direction}, bm25(articles_fts) ASC, articles.id DESC"
+        # *** END MODIFIED ORDER BY ***
 
-        # Construct the JOIN query
+        # Construct the JOIN query (structure remains the same)
         sql = f'''
         SELECT articles.id, articles.title, articles.url, articles.feed_source,
                articles.published_date, articles.impact_score, articles.image_url,
                articles.feed_profile, articles.processed_content
         FROM articles
         JOIN articles_fts ON articles.id = articles_fts.rowid
-        WHERE {where_string}
+        WHERE {where_string_fts}
         {order_by_clause}
         LIMIT ? OFFSET ?
         '''
-        # Params order: filter_params (date, profile, search), pagination_params
-        final_params = filter_params + [per_page, offset]
+        # Params order: filter_params (date, profile), search_params, pagination_params
+        final_params = filter_params + search_params + [per_page, offset]
 
     else:
         # --- NO SEARCH: Use standard query and user-selected sorting ---
         print("INFO: No search term, using standard sorting.")
 
-        # Standard Sorting logic (as before, using qualified names)
-        allowed_sort_columns = {
-            'published_date': 'articles.published_date',
-            'impact_score': 'articles.impact_score',
-            'fetched_at': 'articles.fetched_at'
-        }
-        db_sort_column = allowed_sort_columns.get(sort_by, 'articles.published_date')
-        db_direction = 'ASC' if direction.lower() == 'asc' else 'DESC'
+        # Standard ORDER BY (as before)
         order_by_clause = f"ORDER BY {db_sort_column} {db_direction}, articles.id DESC"
 
         # Construct the standard query (no JOIN needed)
@@ -232,7 +236,7 @@ def get_all_articles(page=1, per_page=ARTICLES_PER_PAGE_DEFAULT,
                articles.published_date, articles.impact_score, articles.image_url,
                articles.feed_profile, articles.processed_content
         FROM articles
-        WHERE {where_string}
+        WHERE {where_string_base}
         {order_by_clause}
         LIMIT ? OFFSET ?
         '''
@@ -240,9 +244,19 @@ def get_all_articles(page=1, per_page=ARTICLES_PER_PAGE_DEFAULT,
         final_params = filter_params + [per_page, offset]
     # --- End Conditional Query Building ---
 
-    cursor.execute(sql, final_params)
-    articles = cursor.fetchall()
-    conn.close()
+    # print(f"DEBUG SQL: {sql}")
+    # print(f"DEBUG PARAMS: {final_params}")
+    try:
+        cursor.execute(sql, final_params)
+        articles = cursor.fetchall()
+    except Exception as e:
+        print(f"ERROR executing article query: {e}")
+        print(f"SQL: {sql}")
+        print(f"PARAMS: {final_params}")
+        articles = [] # Return empty list on error
+    finally:
+        conn.close()
+
     return articles
 
 def get_total_article_count(start_date=None, end_date=None, feed_profile=None, search_term=None):

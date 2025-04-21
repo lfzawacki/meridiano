@@ -381,9 +381,8 @@ blockquote {
 
 .form-section {
     /* Base styles for sections within the form if needed */
-    padding-bottom: 10px;
-    border-bottom: 1px solid #eee; /* Dotted separator */
 }
+
 .form-section:last-child {
     border-bottom: none;
     padding-bottom: 0;
@@ -597,7 +596,6 @@ blockquote {
     color: #6c757d;
     border-top: 1px solid #eee;
     padding-top: 10px;
-    margin-top: 10px;
 }
 
 /* --- Sorting Controls Styling --- */

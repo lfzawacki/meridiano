@@ -120,35 +120,18 @@
                 </div>
                 {# --- Sort Controls Section --- #}
                 <div class="sort-controls form-section">
-                  {# Show relevance notice OR standard sort links #}
-                  {% if current_search_term %}
-                      <span class="relevance-notice">Results sorted by relevance.</span>
-                      {# Optionally hide standard sort links when searching #}
-                      {# You could put the standard sort links inside an {% else %} block #}
-                      {# Or keep them but make them visually less prominent #}
-                      <span style="margin-left: 10px; font-size: 0.9em; color: #6c757d;">
-                      (Clear search to use standard sorting:
-                       {% set sort_fields = {"published_date": "Date", "impact_score": "Impact"} %}
-                       {% for field, label in sort_fields.items() %}
-                          {% set is_active = (current_sort_by == field) %}
-                          <a href="{{ url_for('list_articles', page=1, sort_by=field, direction='desc', start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}"
-                             class="sort-link-disabled">{{ label }}</a>{% if not loop.last %} / {% endif %}
-                      {% endfor %}
-                      )
-                      </span>
-
-                  {% else %} {# No search term, show standard sort controls #}
-                      Sort by:
-                      {% set sort_fields = {"published_date": "Published Date", "impact_score": "Impact Score"} %}
-                      {% for field, label in sort_fields.items() %}
-                          {% set is_active = (current_sort_by == field) %}
-                          {% set next_direction = 'asc' if (is_active and current_direction == 'desc') else 'desc' %}
-                          {# Sorting links preserve date/profile (no search term here) #}
-                          <a href="{{ url_for('list_articles', page=1, sort_by=field, direction=next_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}"
-                             class="sort-link {{ 'active' if is_active else '' }}">{{ label }} {% if is_active %}<span class="sort-indicator">{{ '▲' if current_direction == 'asc' else '▼' }}</span>{% endif %}</a>
-                      {% endfor %}
-                  {% endif %}
-              </div>
+                    Sort by:
+                    {% set sort_fields = {"published_date": "Published Date", "impact_score": "Impact Score"} %}
+                    {% for field, label in sort_fields.items() %}
+                        {% set is_active = (current_sort_by == field) %}
+                        {% set next_direction = 'asc' if (is_active and current_direction == 'desc') else 'desc' %}
+                        {# Sorting links preserve date/profile/search #}
+                        <a href="{{ url_for('list_articles', page=1, sort_by=field, direction=next_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
+                           class="sort-link {{ 'active' if is_active else '' }}">{{ label }}
+                            {% if is_active %}<span class="sort-indicator">{{ '▲' if current_direction == 'asc' else '▼' }}</span>{% endif %}
+                        </a>
+                    {% endfor %}
+                </div>
             </form>
             {# End Form #}
             <ul class="article-list">

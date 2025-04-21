@@ -426,19 +426,6 @@ def generate_brief(feed_profile, effective_config): # Added feed_profile param
         cluster_analyses_text=cluster_analyses_text,
         feed_profile=feed_profile
     )
-
-    # Synthesize Final Brief using profile-specific or default prompt
-    brief_synthesis_prompt_template = getattr(effective_config, 'PROMPT_BRIEF_SYNTHESIS', config.PROMPT_BRIEF_SYNTHESIS) # Fallback
-    print(f"DEBUG: Using Brief Synthesis Prompt Template:\n'''{brief_synthesis_prompt_template[:100]}...'''") # Debug print
-
-    cluster_analyses_text = ""
-    for i, cluster in enumerate(cluster_analyses[:5]):
-        cluster_analyses_text += f"--- Cluster {i+1} ({cluster['size']} articles) ---\nAnalysis: {cluster['analysis']}\n\n"
-
-    synthesis_prompt = brief_synthesis_prompt_template.format(
-        cluster_analyses_text=cluster_analyses_text,
-        feed_profile=feed_profile
-    )
     final_brief_md = call_deepseek_chat(synthesis_prompt)
 
     if final_brief_md:

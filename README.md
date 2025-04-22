@@ -7,9 +7,7 @@
 
 Meridiano cuts through the news noise by scraping configured sources, analyzing stories with AI (summaries, impact ratings), clustering related events, and delivering concise daily briefs via a web interface.
 
-<p align="center">
-  <video src="https://github.com/lfzawacki/meridiano/raw/refs/heads/main/meridiano-demo.mp4" alt="Meridiano Web Interface Demo" width="960"/>
-</p>
+https://github.com/user-attachments/assets/269cce1b-4bfc-404c-9f05-7c1c7c5d1e0a
 
 ## Why It Exists
 
@@ -40,56 +38,55 @@ Built for the curious mind wanting depth and relevance without the endless time 
 
 ```mermaid
 graph TD
-    A["Feed Profile Config (e.g., feeds/tech.py)"] --> B(run_briefing.py CLI);
-    B -- Scrape --> C{RSS Feeds};
-    C -- feedparser --> D[Article Metadata + URL];
-    D -- requests/bs4 --> E[Fetch HTML + OG Image];
-    E -- trafilatura --> F[Extract Content];
-    G[RSS Image?] --> H{Select Image URL};
-    E -- og_image --> H;
-    F & H --> I(Add Article to DB);
-    I -- feed_profile --> J[Articles Table (SQLite)];
+    A["Feed Profile Config (e.g., feeds/tech.py)"] --> B("run_briefing.py CLI");
+    B -- Scrape --> C{"RSS Feeds"};
+    C -- feedparser --> D["Article Metadata + URL"];
+    D -- "requests/bs4" --> E["Fetch HTML + OG Image"];
+    E -- trafilatura --> F["Extract Content"];
+    G["RSS Image?"] --> H{"Select Image URL"};
+    E -- "og_image" --> H;
+    F & H --> I("Add Article to DB");
+    I -- feed_profile --> J["Articles Table (SQLite)"];
     J -- image_url --> J;
-    database.init_db -- Creates --> J;
-    database.init_db -- Creates --> K[articles_fts Table (SQLite)];
-    database.init_db -- Creates --> L[Briefs Table (SQLite)];
+    database_init_db1["database.init_db"] -- Creates --> J;
+    database_init_db2["database.init_db"] -- Creates --> K["articles_fts Table (SQLite)"];
+    database_init_db3["database.init_db"] -- Creates --> L["Briefs Table (SQLite)"];
     I -- Trigger --> K;
 
-    B -- Process --> M{Fetch Unprocessed Articles};
+    B -- Process --> M{"Fetch Unprocessed Articles"};
     M -- feed_profile --> J;
-    M --> N[LLM Article Summary];
-    N -- Deepseek API --> N;
-    N -- embedding_client --> O[Generate Embeddings];
-    O -- TogetherAI/Other API --> O;
-    N & O --> P[Update Article Processing];
+    M --> N["LLM Article Summary"];
+    N -- "Deepseek API" --> N;
+    N -- embedding_client --> O["Generate Embeddings"];
+    O -- "TogetherAI/Other API" --> O;
+    N & O --> P["Update Article Processing"];
     P --> J;
 
-    B -- Rate --> Q{Fetch Unrated Articles};
+    B -- Rate --> Q{"Fetch Unrated Articles"};
     Q -- feed_profile --> J;
-    Q -- Summary --> R[LLM Impact Rating];
-    R -- Deepseek API --> R;
-    R --> S[Update Article Rating];
+    Q -- Summary --> R["LLM Impact Rating"];
+    R -- "Deepseek API" --> R;
+    R --> S["Update Article Rating"];
     S --> J;
 
-    B -- Generate Brief --> T{Fetch Recent Processed Articles};
+    B -- Generate Brief --> T{"Fetch Recent Processed Articles"};
     T -- feed_profile --> J;
-    T -- Embeddings --> U[Cluster Articles (KMeans)];
-    U --> V[Analyze Clusters];
-    V -- LLM Cluster Analysis --> V;
-    V -- Deepseek API / Profile Prompt --> V;
-    V --> W[Synthesize Brief];
-    W -- LLM Brief Synthesis --> W;
-    W -- Deepseek API / Profile Prompt --> W;
-    W --> X[Save Brief to DB];
+    T -- Embeddings --> U["Cluster Articles (KMeans)"];
+    U --> V["Analyze Clusters"];
+    V -- "LLM Cluster Analysis" --> V;
+    V -- "Deepseek API / Profile Prompt" --> V;
+    V --> W["Synthesize Brief"];
+    W -- "LLM Brief Synthesis" --> W;
+    W -- "Deepseek API / Profile Prompt" --> W;
+    W --> X["Save Brief to DB"];
     X -- feed_profile --> L;
 
-    Y[app.py (Flask Server)] --> Z{Web UI Request};
-    Z -- Filters/Sort/Search --> Y;
+    Y["app.py (Flask Server)"] --> Z{"Web UI Request"};
+    Z -- "Filters/Sort/Search" --> Y;
     Y -- Reads --> J;
     Y -- Reads --> L;
-    Y --> AA[Render HTML Template];
-    AA --> BB[User Browser];
-
+    Y --> AA["Render HTML Template"];
+    AA --> BB["User Browser"];
 ```
 
 1.  **Configuration**: Load base settings (`config_base.py`) and feed-specific settings (`feeds/<profile_name>.py`), including RSS feeds and custom prompts.

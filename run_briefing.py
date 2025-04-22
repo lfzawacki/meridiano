@@ -385,27 +385,40 @@ def generate_brief(feed_profile, effective_config): # Added feed_profile param
     # Analyze each cluster
     cluster_analyses = []
     print("Analyzing clusters...")
-    for i in range(n_clusters):
+
+   # *** Get the cluster analysis prompt template from effective_config ***
+    cluster_analysis_prompt_template = getattr(
+        effective_config,
+        'PROMPT_CLUSTER_ANALYSIS',      # Look for this constant
+        config.PROMPT_CLUSTER_ANALYSIS # Fallback to default if not found
+    )
+    print(f"DEBUG: Using Cluster Analysis Prompt Template:\n'''{cluster_analysis_prompt_template[:100]}...'''") # Debug
+
+    for i in range(n_clusters): # Use the actual n_clusters determined
         cluster_indices = np.where(labels == i)[0]
+        if len(cluster_indices) == 0: continue # Skip empty clusters
+
         cluster_summaries = [summaries[idx] for idx in cluster_indices]
-
-        if not cluster_summaries:
-            continue
-
         print(f"  Analyzing Cluster {i} ({len(cluster_summaries)} articles)")
 
-        # Limit summaries sent to LLM to avoid excessive length/cost
-        MAX_SUMMARIES_PER_CLUSTER = 10
-        analysis_prompt = "These are summaries of potentially related news articles:\n\n"
-        analysis_prompt += "\n\n".join([f"- {s}" for s in cluster_summaries[:MAX_SUMMARIES_PER_CLUSTER]])
-        analysis_prompt += "\n\nWhat is the core event or topic discussed? Summarize the key developments and significance in 3-5 sentences based *only* on the provided text. If the articles seem unrelated, state that."
+        MAX_SUMMARIES_PER_CLUSTER = 10 # Consider making this configurable too?
+        cluster_summaries_text = "\n\n".join([f"- {s}" for s in cluster_summaries[:MAX_SUMMARIES_PER_CLUSTER]])
 
-        cluster_analysis = call_deepseek_chat(analysis_prompt, system_prompt="You are an intelligence analyst identifying key news themes.")
+        # *** Format the chosen prompt template ***
+        analysis_prompt = cluster_analysis_prompt_template.format(
+            cluster_summaries_text=cluster_summaries_text,
+            feed_profile=feed_profile
+        )
+
+        # *** Call LLM with the formatted prompt ***
+        cluster_analysis = call_deepseek_chat(analysis_prompt) # System prompt could also be configurable
+
         if cluster_analysis:
-            # Simple check to filter out potentially "unrelated" clusters if desired
+            # (Consider adding more robust filtering of non-analysis responses)
             if "unrelated" not in cluster_analysis.lower() or len(cluster_summaries) > 2:
                  cluster_analyses.append({"topic": f"Cluster {i+1}", "analysis": cluster_analysis, "size": len(cluster_summaries)})
-        time.sleep(2) # API rate limiting
+        time.sleep(1) # Rate limiting
+    # --- End Analyze each cluster ---
 
     if not cluster_analyses:
         print("No meaningful clusters found or analyzed.")
@@ -433,7 +446,6 @@ def generate_brief(feed_profile, effective_config): # Added feed_profile param
         print(f"--- Brief Generation Finished Successfully [{feed_profile}] ---")
     else:
         print(f"--- Brief Generation Failed [{feed_profile}]: Could not synthesize final brief. ---")
-
 
 # --- Main Execution ---
 if __name__ == "__main__":

@@ -8,7 +8,7 @@
 Meridiano cuts through the news noise by scraping configured sources, analyzing stories with AI (summaries, impact ratings), clustering related events, and delivering concise daily briefs via a web interface.
 
 <p align="center">
-  <video src="./meridiano-demo.mp4" alt="Meridiano Web Interface Demo" width="960"/>
+  <video src="https://github.com/lfzawacki/meridiano/raw/refs/heads/main/meridiano-demo.mp4" alt="Meridiano Web Interface Demo" width="960"/>
 </p>
 
 ## Why It Exists
@@ -40,7 +40,7 @@ Built for the curious mind wanting depth and relevance without the endless time 
 
 ```mermaid
 graph TD
-    A[Feed Profile Config (e.g., feeds/tech.py)] --> B(run_briefing.py CLI);
+    A["Feed Profile Config (e.g., feeds/tech.py)"] --> B(run_briefing.py CLI);
     B -- Scrape --> C{RSS Feeds};
     C -- feedparser --> D[Article Metadata + URL];
     D -- requests/bs4 --> E[Fetch HTML + OG Image];

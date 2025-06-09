@@ -362,17 +362,17 @@ def update_article_processing(article_id, processed_content, embedding):
     conn.commit()
     conn.close()
 
-def get_articles_for_briefing(lookback_hours, feed_profile):
+def get_articles_for_briefing(lookback_hours, feed_profile, min_impact_rating=4):
     """Gets recently processed articles *for a specific feed profile*."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
     cursor.execute('''
-    SELECT id, processed_content, embedding FROM articles
-    WHERE processed_at >= ? AND embedding IS NOT NULL
-      AND feed_profile = ?  -- *** Filter by profile ***
-    ORDER BY processed_at DESC
-    ''', (cutoff_time, feed_profile))
+    SELECT id, title, processed_content, embedding FROM articles
+    WHERE published_date >= ? AND embedding IS NOT NULL
+      AND feed_profile = ? AND impact_score >= ?
+    ORDER BY published_date DESC
+    ''', (cutoff_time, feed_profile, min_impact_rating))
     articles = cursor.fetchall()
     conn.close()
     return articles

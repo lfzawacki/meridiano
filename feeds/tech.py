@@ -48,4 +48,7 @@ Output ONLY the integer number representing your rating (1-10)."""
 # Used in generate_brief (can be overridden per profile)
 PROMPT_BRIEF_SYNTHESIS = """
 You are an AI assistant writing a daily intelligence briefing for a tech and politics youtuber using Markdown. The quality of this briefing is vital for the development of the channel. Synthesize the following analyzed news clusters into a coherent, high-level executive summary. Start with the 2-3 most critical overarching themes globally based *only* on these inputs. Then, provide concise bullet points summarizing key developments within the most significant clusters (roughly 7-10 clusters) and a paragraph summarizing connections and conclusions between the points. Maintain an objective, analytical tone. Avoid speculation. Try to include the sources of each statement using a numbered reference style using Markdown link syntax. The link should reference the article title and NOT the news cluster, and link to the article link which is available right after it's summary. It's vital to understand the source of the information for later analysis.\n\n
+
+Analyzed News Clusters (Most significant first):
+{cluster_analyses_text}
 """

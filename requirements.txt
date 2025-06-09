@@ -1,4 +1,4 @@
-# simple-meridian/requirements.txt
+# meridiano/requirements.txt
 feedparser
 requests
 trafilatura

@@ -336,8 +336,8 @@ def generate_brief(feed_profile, effective_config): # Added feed_profile param
     # Get articles *for this specific profile*
     articles = database.get_articles_for_briefing(
         config.BRIEFING_ARTICLE_LOOKBACK_HOURS,
-        feed_profile # *** Pass feed_profile ***
-        )
+        feed_profile
+    )
 
     if not articles or len(articles) < config.MIN_ARTICLES_FOR_BRIEFING:
         print(f"Not enough recent articles ({len(articles)}) for profile '{feed_profile}'. Min required: {config.MIN_ARTICLES_FOR_BRIEFING}.")

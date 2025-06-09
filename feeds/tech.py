@@ -14,6 +14,7 @@ RSS_FEEDS = [
   "https://www.scmp.com/rss/318222/feed", # innovation
   "https://www.wired.com/feed/category/backchannel/latest/rss",
   "https://www.wired.com/feed/rss",
+  "https://economictimes.indiatimes.com/tech/rssfeeds/13357270.cms",
 ]
 
 # Used in process_articles (operates globally, so uses default)

@@ -3,8 +3,6 @@
 import os
 import importlib
 import feedparser
-import requests
-import trafilatura
 from datetime import datetime
 import json
 import time
@@ -14,9 +12,9 @@ from dotenv import load_dotenv
 import openai
 import argparse
 
-from bs4 import BeautifulSoup
-
 from urllib.parse import urljoin
+
+from utils import fetch_article_content_and_og_image
 
 try:
     import config_base as config # Load base config first
@@ -40,59 +38,6 @@ if not EMBEDDING_API_KEY:
 # Use the correct client for Deepseek, not OpenAI
 client = openai.Client(api_key=API_KEY, base_url="https://api.deepseek.com/v1")
 embedding_client = openai.Client(api_key=EMBEDDING_API_KEY, base_url="https://api.together.xyz/v1")
-
-# --- Helper Functions ---
-
-def fetch_article_content_and_og_image(url):
-    """
-    Fetches HTML, extracts main content using Trafilatura,
-    and extracts the og:image URL using BeautifulSoup.
-
-    Returns:
-        dict: {'content': str|None, 'og_image': str|None}
-    """
-    content = None
-    og_image = None
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0',
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Accept-Encoding": "gzip, deflate",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
-            "Cache-Control": "max-age=0",
-            "referer": "https://www.google.com"
-        }
-        response = requests.get(url, headers=headers, timeout=20) # Increased timeout slightly
-        response.raise_for_status()
-        html_content = response.text
-
-        # 1. Extract text content
-        content = trafilatura.extract(html_content, include_comments=False, include_tables=False)
-
-        # 2. Extract og:image using BeautifulSoup
-        soup = BeautifulSoup(html_content, 'lxml') # Use lxml or html.parser
-        og_image_tag = soup.find('meta', property='og:image')
-        if og_image_tag and og_image_tag.get('content'):
-            og_image = og_image_tag['content']
-            # Optionally resolve relative URLs - less common for og:image but possible
-            og_image = urljoin(url, og_image)
-
-        return {'content': content, 'og_image': og_image}
-
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching {url}: {e}")
-        return {'content': None, 'og_image': None}
-    except Exception as e:
-        # Catch potential BeautifulSoup errors or others
-        print(f"Error processing content/og:image from {url}: {e}")
-        # Still return content if it was extracted before the error
-        return {'content': content, 'og_image': None}
 
 def call_deepseek_chat(prompt, model=config.DEEPSEEK_CHAT_MODEL, system_prompt=None):
     """Calls the Deepseek Chat API."""
@@ -133,7 +78,6 @@ def get_deepseek_embedding(text, model=config.EMBEDDING_MODEL):
     except Exception as e:
          print(f"Error calling Embedding API: {e}")
          return None
-
 
 # --- Core Functions ---
 

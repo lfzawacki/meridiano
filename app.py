@@ -1,29 +1,20 @@
 # simple-meridian/app.py
 
-from flask import Flask, render_template, request, abort
+from flask import Flask, render_template, request, abort, flash, redirect, url_for
 from markupsafe import Markup
 import markdown
 from datetime import datetime, timedelta, date
 import math
 import json
+import os
 
 import config_base as config # Use base config for app settings
 import database # Import our database functions
 
-app = Flask(__name__)
+from utils import scrape_single_article_details, format_datetime
 
-# Helper function for date formatting (optional but nice)
-def format_datetime(value, format='%Y-%m-%d %H:%M'):
-    if value is None:
-        return "N/A"
-    if isinstance(value, str):
-        try:
-            value = datetime.fromisoformat(value)
-        except ValueError:
-            return value # Return original string if parsing fails
-    if isinstance(value, datetime):
-        return value.strftime(format)
-    return value
+app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "a_default_secret_key_for_development_only")
 
 # Register the filter with Jinja
 app.jinja_env.filters['datetimeformat'] = format_datetime
@@ -196,6 +187,85 @@ def view_article(article_id):
     return render_template('view_article.html', # Use a new template
                            article=article_data,
                            embedding_status=embedding_status)
+
+@app.route('/add_article', methods=['GET', 'POST'])
+def add_manual_article():
+    if request.method == 'POST':
+        article_url = request.form.get('article_url', '').strip()
+        feed_profile_to_assign = request.form.get('feed_profile_assign', '').strip()
+        if not feed_profile_to_assign:
+            feed_profile_to_assign = getattr(config, 'MANUALLY_ADDED_PROFILE_NAME', 'manual')
+
+        if not article_url:
+            flash('Article URL is required.', 'error')
+            return redirect(url_for('add_manual_article')) # Redirect back to form
+
+        if not (article_url.startswith('http://') or article_url.startswith('https://')): # ...
+            flash('Invalid URL. Please include http:// or https://.', 'error')
+            return redirect(url_for('add_manual_article'))
+
+        # Check if article already exists
+        conn = database.get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM articles WHERE url = ?", (article_url,))
+        exists = cursor.fetchone()
+        conn.close()
+        if exists:
+            flash(f'Article from URL "{article_url}" already exists (ID: {exists["id"]}).', 'warning')
+            return redirect(url_for('list_articles'))
+
+        # --- Attempt to scrape details immediately ---
+        scraped_details = scrape_single_article_details(article_url)
+
+        if scraped_details['error'] and not (scraped_details['title'] or scraped_details['raw_content']):
+            # If major error and nothing was scraped, flash it and retry
+            flash(f"Error scraping article: {scraped_details['error']}", 'error')
+            return redirect(url_for('add_manual_article'))
+        elif scraped_details['error']:
+            # If minor error (e.g., no image but content scraped), flash as warning but proceed
+            flash(f"Warning during scraping: {scraped_details['error']}", 'warning')
+        # --- End immediate scrape ---
+
+        try:
+            # Use scraped details if available, otherwise fall back to placeholders
+            final_title = scraped_details['title'] if scraped_details['title'] else "Manually Added - Pending Title"
+            final_raw_content = scraped_details['raw_content'] # Can be None
+            final_image_url = scraped_details['image_url']   # Can be None
+
+            article_id = database.add_article(
+                url=article_url,
+                title=final_title,
+                published_date=datetime.now(), # Or try to get from OG tags if scrape_single enhanced
+                feed_source="Manual Addition",
+                raw_content=final_raw_content,
+                feed_profile=feed_profile_to_assign,
+                image_url=final_image_url
+            )
+            if article_id:
+                if final_raw_content:
+                     flash(f'Article "{final_title}" added and scraped successfully for profile "{feed_profile_to_assign}" (ID: {article_id}). It will be processed for summary/impact soon.', 'success')
+                else: # If scraping content failed but we still added the URL
+                     flash(f'Article URL "{article_url}" added to profile "{feed_profile_to_assign}" (ID: {article_id}). Content scraping failed, will be retried by batch process.', 'warning')
+                return redirect(url_for('view_article', article_id=article_id))
+            else:
+                flash('Failed to add article to database. It might already exist with a different error or there was an unknown issue.', 'error')
+        except Exception as e:
+            # logger.error(f"Error adding manual article {article_url} to DB: {e}", exc_info=True)
+            print(f"ERROR adding manual article {article_url} to DB: {e}")
+            flash(f'An error occurred while adding the article to the database: {e}', 'error')
+
+        return redirect(url_for('add_manual_article'))
+
+    # GET request: Show the form
+    # Fetch available profiles for the dropdown
+    available_profiles = database.get_distinct_feed_profiles(table='articles')
+    # Add the special manual profile if it's not already a common one
+    manual_profile_name = getattr(config, 'MANUALLY_ADDED_PROFILE_NAME', 'manual')
+    if manual_profile_name not in available_profiles:
+         # Don't permanently add it to the list of *scrapeable* profiles, just offer as option
+         pass # User will select or it defaults
+
+    return render_template('add_article.html', available_profiles=available_profiles, default_manual_profile=manual_profile_name)
 
 if __name__ == '__main__':
     database.init_db()

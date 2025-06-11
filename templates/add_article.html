@@ -1,0 +1,63 @@
+{# templates/add_article.html #}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Add New Article - Meridiano</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="navigation">
+             <a href="{{ url_for('list_articles') }}">« View Articles List</a>
+             <span style="margin: 0 10px;">|</span>
+             <a href="{{ url_for('index') }}">View Briefings List »</a>
+        </div>
+
+        <h1>Add New Article Manually</h1>
+
+        {# --- Flash Messages --- #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        {# --- End Flash Messages --- #}
+
+        <form method="POST" action="{{ url_for('add_manual_article') }}" class="add-article-form">
+            <div class="form-group">
+                <label for="article_url">Article URL:</label>
+                <input type="url" id="article_url" name="article_url" class="form-control"
+                       placeholder="https://www.example.com/news/your-article-here" required>
+                <small class="form-text">Enter the full URL of the article you want to add.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="feed_profile_assign">Assign to Feed Profile (Optional):</label>
+                <select name="feed_profile_assign" id="feed_profile_assign" class="form-control">
+                    {# Default to the special 'manual' profile #}
+                    <option value="{{ default_manual_profile }}" selected>{{ default_manual_profile | capitalize }} (Manually Added)</option>
+                    {# Offer existing profiles #}
+                    {% for profile in available_profiles %}
+                        {% if profile != default_manual_profile %} {# Avoid duplicating if 'manual' is somehow an existing profile name #}
+                            <option value="{{ profile }}">{{ profile | capitalize }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+                <small class="form-text">
+                    Select an existing profile, or leave as '{{ default_manual_profile | capitalize }}'.
+                    The article will be processed and potentially included in briefs for this profile.
+                </small>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Add Article</button>
+        </form>
+
+    </div>
+</body>
+</html>

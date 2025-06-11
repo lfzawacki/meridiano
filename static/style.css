@@ -29,8 +29,8 @@ body {
 
 .navigation a {
     text-decoration: none;
-    color: #007bff; /* Standard link blue */
 }
+
 .navigation a:hover {
     text-decoration: underline;
 }
@@ -692,4 +692,117 @@ blockquote {
     text-decoration: none;
     margin-left: 5px;
     cursor: default;
+}
+
+/* --- Flash Message Styling --- */
+.flash-messages {
+    margin-bottom: 15px;
+}
+.flash {
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+.flash-success { color: #0f5132; background-color: #d1e7dd; border-color: #badbcc; }
+.flash-error   { color: #842029; background-color: #f8d7da; border-color: #f5c2c7; }
+.flash-warning { color: #664d03; background-color: #fff3cd; border-color: #ffecb5; }
+.flash-info    { color: #055160; background-color: #cff4fc; border-color: #b6effb; } /* For general info */
+
+/* --- Add Article Form Styling --- */
+.add-article-form {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+}
+.form-group {
+    margin-bottom: 1rem;
+}
+.form-group label {
+    display: block;
+    margin-bottom: .5rem;
+    font-weight: 500;
+    font-size: 0.9em;
+}
+.form-control {
+    display: block;
+    width: 100%;
+    padding: .375rem .75rem;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #212529;
+    background-color: #fff;
+    background-clip: padding-box;
+    border: 1px solid #ced4da;
+    appearance: none; /* For select */
+    border-radius: .25rem;
+    transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+.form-control:focus {
+    border-color: #86b7fe;
+    outline: 0;
+    box-shadow: 0 0 0 .25rem rgba(13,110,253,.25);
+}
+.form-text {
+    display: block;
+    margin-top: .25rem;
+    font-size: .8em;
+    color: #6c757d;
+}
+.btn-primary { /* For the submit button */
+    color: #fff;
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+.btn-primary:hover {
+    color: #fff;
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+/* --- Navigation Button Styling --- */
+.navigation {
+    /* ... existing styles ... */
+    display: flex; /* Use flex for better alignment of nav items */
+    justify-content: space-between; /* Space out main nav and add button */
+    align-items: center;
+}
+.nav-button { /* General style for nav links acting as buttons */
+    padding: 5px 10px;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.9em;
+    display: inline-flex; /* Align icon and text */
+    align-items: center;
+    gap: 5px; /* Space between icon and text */
+}
+.nav-separator {
+    color: #ccc;
+    margin: 0 8px;
+}
+
+.add-article-btn {
+    color: #fff;
+    background-color: #198754; /* Green for add */
+    border: 1px solid #198754;
+}
+
+.add-article-btn:visited {
+  color: #fff;
+}
+
+.add-article-btn:hover {
+    background-color: #157347;
+    border-color: #146c43;
+}
+
+.nav-icon {
+    width: 1em; /* Relative to font size */
+    height: 1em;
+    vertical-align: middle; /* Better alignment */
 }

@@ -190,12 +190,6 @@
                             </div>
                         </li>
                     {% endfor %}
-                    {% if total_articles == 0 %}
-                        {# Message already shown above #}
-                    {% else %}
-                        <li>No articles found on this page.</li>
-                        {# Should only happen if page > total_pages #}
-                    {% endif %}
                 </ul>
                 {# --- PAGINATION CONTROLS --- #}
                 {% if total_pages > 1 %}

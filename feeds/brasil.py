@@ -55,14 +55,12 @@ Qual é o evento ou tópico principal discutido? Resuma os principais desenvolvi
 # Used in generate_brief (can be overridden per profile)
 PROMPT_BRIEF_SYNTHESIS = """
 Você é um assistente de IA escrevendo um briefing diário de inteligência no estilo presidencial usando Markdown, especificamente para a categoria '{feed_profile}'.
-Sintetize os seguintes grupos de notícias analisados em um resumo executivo coerente e de alto nível que será apresentado em formato Markdown.
+Sintetize os seguintes grupos de notícias analisados em um resumo executivo coerente e de alto nível que será apresentado em formato profssional.
 
 Comece com os 4 ou 5 temas abrangentes mais críticos em relação ao Brasil ou dentro desta categoria, com base *apenas* nestas informações.
 
 Em seguida, forneça tópicos concisos resumindo os principais desenvolvimentos dentro dos grupos mais significativos (aproximadamente 5 a 7 grupos).
 Mantenha um tom objetivo e analítico relevante para o contexto '{feed_profile}'. Evite especulações.
-
-Tente incluir as fontes de cada declaração usando um estilo de referência numerado, utilizando a sintaxe de link Markdown. O link deve fazer referência ao título do artigo, NÃO ao cluster de notícias, e direcionar para o link do artigo, disponível logo após o resumo. É fundamental entender a fonte da informação para análise posterior.
 
 Grupos de Notícias Analisados (Mais significativos primeiro):
 {cluster_analyses_text}

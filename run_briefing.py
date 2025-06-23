@@ -196,8 +196,6 @@ def process_articles(feed_profile, effective_config):
             print(f"Skipping article {article['id']} due to summarization error.")
             continue
 
-        summary += f"\n\nSource: [{article['title']}]({article['url']})"
-
         print(f"Article summary is: {summary}")
 
         # 2. Generate Embedding using Deepseek (or alternative)

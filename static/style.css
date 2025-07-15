@@ -87,14 +87,18 @@ hr {
     border-bottom: none;
 }
 
-.article-link {
+.article-link-wrapper {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.article-link, .article-link-original {
+    display: inline;
     text-decoration: none;
     color: #0056b3; /* Slightly darker blue for links */
     font-weight: 500; /* Slightly bolder titles */
-    display: block; /* Make link take full width for easier clicking */
-    margin-bottom: 4px;
 }
-.article-link:hover {
+.article-link:hover, .article-link-original:hover {
     text-decoration: underline;
     color: #003d80;
 }
@@ -161,14 +165,6 @@ hr {
     flex-grow: 1; /* Allow text content to take remaining space */
     /* No specific styles needed unless required */
 }
-
-/* Adjust link position within text content */
-.article-text-content .article-link {
-    display: block; /* Ensure link takes width after badge */
-    margin-bottom: 4px;
-    /* Remove margin-top if badge provides enough space */
-}
-
 /* --- End Article List Image Styling --- */
 
 
@@ -293,6 +289,33 @@ blockquote {
     font-weight: bold;
     margin-top: 1em;
     color: #343a40;
+}
+
+/* Style for the collapsible header (dt) */
+.collapsible-header {
+    display: flex;
+    justify-content: space-between; /* Puts text left, icon right */
+    align-items: center;
+}
+
+/* Style for the icon container */
+.toggle-icon-container {
+    cursor: pointer;
+    padding: 2px 5px;
+    border-radius: 4px;
+    color: #6c757d; /* Muted icon color */
+    display: inline-flex;
+    align-items: center;
+}
+.toggle-icon-container:hover {
+    background-color: #e9ecef;
+    color: #007bff; /* Highlight on hover */
+}
+
+/* Style for the SVG icons themselves */
+.toggle-icon-container svg {
+    width: 16px;
+    height: 16px;
 }
 
 .article-details dd {

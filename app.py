@@ -164,10 +164,16 @@ def list_articles():
 @app.route('/article/<int:article_id>')
 def view_article(article_id):
     """Displays details for a single specific article."""
-    article_data = database.get_article_by_id(article_id)
+    article_data_immutable = database.get_article_by_id(article_id)
 
-    if article_data is None:
+    if article_data_immutable is None:
         abort(404) # Return a 404 error if article not found
+
+    article_data = dict(article_data_immutable)
+
+    summary_markdown = article_data.get('processed_content', '') or ''
+    # The summary includes a source link, so markdown rendering is useful
+    article_data['processed_content_html'] = Markup(markdown.markdown(summary_markdown, extensions=['fenced_code']))
 
     # Basic check if embedding data exists (without showing the vector)
     embedding_status = "Not Generated"

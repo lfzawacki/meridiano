@@ -56,6 +56,16 @@
                 {% endif %}
             </dd>
 
+            <dt>AI Summary (Processed Content)</dt>
+            <dd class="content-block summary-content">
+                {# *** Use the pre-rendered HTML and the 'safe' filter *** #}
+                {% if article.processed_content_html %}
+                    {{ article.processed_content_html | safe }}
+                {% else %}
+                    <em>Not Processed / Summarized Yet</em>
+                {% endif %}
+            </dd>
+
             <dt>Original URL</dt>
             <dd><a href="{{ article['url'] }}" target="_blank">{{ article['url'] }}</a></dd>
 
@@ -77,19 +87,18 @@
             <dt>Cluster ID</dt> {# Assuming cluster_id might be None or 0 if not clustered #}
             <dd>{{ article['cluster_id'] if article['cluster_id'] is not none else 'Not Clustered' }}</dd>
 
-            <dt>AI Summary (Processed Content)</dt>
-            <dd class="content-block">
-                {% if article['processed_content'] %}
-                    {{ article['processed_content'] }}
-                {% else %}
-                    <em>Not Processed / Summarized Yet</em>
-                {% endif %}
-            </dd>
-
-            <dt>Raw Extracted Content</dt>
-            <dd class="content-block raw-content">
-                {% if article['raw_content'] %}
-                    <pre>{{ article['raw_content'] }}</pre>
+            <dt class="collapsible-header">
+                Raw Extracted Content
+                <span class="toggle-icon-container" onclick="toggleRawContent()" title="Toggle Raw Content Visibility">
+                    {# Eye Icon (initially visible) #}
+                    <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor"><path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" /><path fill-rule="evenodd" d="M1.38 8.28a.87.87 0 0 1 0-.56C2.014 6.736 3.606 5 8 5s5.986 1.736 6.62 2.72a.87.87 0 0 1 0 .56C13.986 9.264 12.394 11 8 11S2.014 9.264 1.38 8.28ZM8 3.5A4.5 4.5 0 0 0 3.5 8c0 .72.181 1.393.5 2.004A4.495 4.495 0 0 0 8 12.5a4.495 4.495 0 0 0 4.5-2.496A4.495 4.495 0 0 0 12.5 8 4.5 4.5 0 0 0 8 3.5Z" clip-rule="evenodd" /></svg>
+                    {# Eye Slashed Icon (initially hidden) #}
+                    <svg id="eye-slash-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" style="display: none;"><path fill-rule="evenodd" d="M4.755 5.587a.75.75 0 0 1 1.06-.03l7.306 6.688a.75.75 0 0 1-1.03 1.09l-7.305-6.688a.75.75 0 0 1-.03-1.06Zm-2.22 2.693a.87.87 0 0 1 0-.56C3.169 6.736 4.76 5 9.205 5a6.43 6.43 0 0 1 2.91.633a.75.75 0 0 1-.692 1.229A4.931 4.931 0 0 0 9.205 6.5C5.786 6.5 4.148 8.164 3.58 8.92a2.41 2.41 0 0 0 0 .16l.004.008a.75.75 0 0 1-1.06 1.06l-.008-.008a3.91 3.91 0 0 1 0-1.08ZM11.19 9.33a.75.75 0 1 1 1.12 1a4.495 4.495 0 0 1-4.004 2.17A4.495 4.495 0 0 1 3.801 10a4.494 4.494 0 0 1 4.504-2.496c.26 0 .515.022.763.065a.75.75 0 0 1 .288 1.451A2.996 2.996 0 0 0 8.205 9.5a2.996 2.996 0 0 0 2.984-.17Z" clip-rule="evenodd" /></svg>
+                </span>
+            </dt>
+            <dd id="raw-content-container" class="content-block raw-content" style="display: none;"> {# Initially hidden #}
+                {% if article.raw_content %}
+                    <pre>{{ article.raw_content }}</pre>
                 {% else %}
                     <em>Raw content not available or failed to extract.</em>
                 {% endif %}
@@ -97,5 +106,23 @@
         </dl>
 
     </div>
+    <script>
+        function toggleRawContent() {
+            var content = document.getElementById('raw-content-container');
+            var eyeIcon = document.getElementById('eye-icon');
+            var eyeSlashIcon = document.getElementById('eye-slash-icon');
+
+            if (content.style.display === 'none' || content.style.display === '') {
+                content.style.display = 'block';
+                eyeIcon.style.display = 'none';
+                eyeSlashIcon.style.display = 'inline-block';
+            } else {
+                content.style.display = 'none';
+                eyeIcon.style.display = 'inline-block';
+                eyeSlashIcon.style.display = 'none';
+            }
+        }
+    </script>
+
 </body>
 </html>

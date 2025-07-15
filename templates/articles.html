@@ -181,8 +181,11 @@
                                 {% else %}
                                     <span class="impact-score score-unknown" title="Impact Score: Not Rated">-</span>
                                 {% endif %}
-                                <a href="{{ url_for('view_article', article_id=article['id']) }}"
-                                   class="article-link">{{ article['title'] | default("Untitled Article") }}</a>
+                                <div class="article-link-wrapper">
+                                  <a href="{{ url_for('view_article', article_id=article['id']) }}"
+                                     class="article-link">{{ article['title'] | default("Untitled Article") }}</a> |
+                                  <a href="{{ article['url'] }}" class="article-link-original">Original</a>
+                                </div>
                                 <span class="article-meta">
                                     ({{ article['feed_source'] | default("Unknown Source") }} / {{ article['published_date'] | datetimeformat }})
                                 </span>

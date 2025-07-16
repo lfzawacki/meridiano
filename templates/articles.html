@@ -11,13 +11,11 @@
     </head>
     <body>
         <div class="container">
-            <div class="navigation">
-                <a href="{{ url_for('index', feed_profile=current_feed_profile) }}">« View Briefings List</a>
-            </div>
-            <h1>
+            {% include 'header.html' %}
+            <h2>
                 Articles
                 {% if current_feed_profile %}<span class="profile-badge">{{ current_feed_profile }}</span>{% endif %}
-            </h1>
+            </h2>
             {% if total_articles > 0 %}
                 <p>
                     Showing articles {{ (page - 1) * per_page + 1 }} - {{ [page * per_page, total_articles] | min }} of {{ total_articles }} total (matching filters).
@@ -144,8 +142,8 @@
                                     alt="Image for {{ article.title | default("") }}"
                                     class="article-image"
                                     loading="lazy" {# Add lazy loading #}
-                                    onerror="this.parentElement.style.display='none'; this.parentElement.nextElementSibling.style.display='flex';">
-                                    {# Hide container on error, show placeholder #}
+                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                    {# Hide image and show placeholder on error #}
                                 {% else %}
                                     {# Show placeholder immediately if no image URL #}
                                     <div class="article-image-placeholder">

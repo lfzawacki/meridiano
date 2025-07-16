@@ -9,12 +9,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="navigation">
-             {# Link back to the articles list #}
-             <a href="{{ url_for('list_articles') }}">« View Articles List</a>
-             <span style="margin: 0 10px;">|</span> {# Separator #}
-             <a href="{{ url_for('index') }}">View Briefings List »</a>
-        </div>
+        {% include 'header.html' %}
 
         <div class="article-detail-image-container">
             {% if article.image_url %}
@@ -38,7 +33,7 @@
             {% endif %}
         </div>
 
-        <h1>Article Details</h1>
+        <h2>Article Details</h2>
 
         {# Use a definition list or simple sections for details #}
         <dl class="article-details">

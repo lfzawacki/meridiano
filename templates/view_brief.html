@@ -8,14 +8,9 @@
 </head>
 <body>
     <div class="container">
-        <div class="navigation">
-             {# Link back to the list of briefs #}
-             <a href="{{ url_for('index') }}">« View All Briefings</a>
-             <span style="margin: 0 10px;">|</span> {# Separator #}
-             <a href="{{ url_for('list_articles') }}">View Stored Articles »</a>
-        </div>
+        {% include 'header.html' %}
 
-        <h1>Intelligence Brief</h1>
+        <h2>Intelligence Brief</h2>
         <p class="timestamp">Generated: {{ generation_time }} (ID: {{ brief_id }})</p> {# Added ID #}
         <hr>
         <div class="brief-content">

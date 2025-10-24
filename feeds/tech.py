@@ -15,6 +15,8 @@ RSS_FEEDS = [
   "https://www.wired.com/feed/category/backchannel/latest/rss",
   "https://www.wired.com/feed/rss",
   "https://economictimes.indiatimes.com/tech/rssfeeds/13357270.cms",
+  "https://www.404media.co/rss",
+  "https://theintercept.com/feed/",
 ]
 
 # Used in process_articles (operates globally, so uses default)

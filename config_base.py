@@ -55,7 +55,7 @@ BRIEFING_ARTICLE_LOOKBACK_HOURS = 24
 # Model for summarization and analysis (check Deepseek docs for latest models)
 DEEPSEEK_CHAT_MODEL = "deepseek-chat"
 # Model for embeddings
-EMBEDDING_MODEL = "togethercomputer/m2-bert-80M-32k-retrieval"
+EMBEDDING_MODEL = "intfloat/multilingual-e5-large-instruct"
 
 # Approximate number of clusters to aim for. Fine-tune based on results.
 # Alternatively, use algorithms like DBSCAN that don't require specifying k.

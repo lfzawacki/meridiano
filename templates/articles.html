@@ -3,11 +3,12 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome-all.min.css') }}">
         <title>Articles
             {% if current_feed_profile %}[{{ current_feed_profile }}]{% endif %}
             {% if current_search_term %}| Search: {{ current_search_term }}{% endif %}
         (Page {{ page }}) - Meridiano</title>
-        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     </head>
     <body>
         <div class="container">
@@ -26,7 +27,6 @@
             <form method="GET"
                   action="{{ url_for("list_articles") }}"
                   class="filter-sort-form">
-                {# Preserve sorting state when submitting date filters #}
                 <input type="hidden" name="sort_by" value="{{ current_sort_by }}">
                 <input type="hidden" name="direction" value="{{ current_direction }}">
                 <input type="hidden" name="start_date" value="{{ current_start_date }}">
@@ -35,7 +35,6 @@
                 <div class="form-row form-section">
                     <div class="profile-filter">
                         <label for="feed_profile_select">Profile:</label>
-                        {# Use JS to submit form on change #}
                         <select name="feed_profile"
                                 id="feed_profile_select"
                                 onchange="this.form.submit()">
@@ -55,33 +54,24 @@
                                placeholder="Search title & content..."
                                value="{{ current_search_term }}">
                         <button type="submit" class="btn btn-search" title="Search">
-                            <svg xmlns="http://www.w3.org/2000/svg"
-                                 viewBox="0 0 16 16"
-                                 fill="currentColor"
-                                 width="16"
-                                 height="16">
-                                <path fill-rule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clip-rule="evenodd" />
-                            </svg>
+                            <i class="fas fa-search"></i>
                         </button>
-                        {# Optional: Clear Search Link #}
                         {% if current_search_term %}
                             <a href="{{ url_for('list_articles', page=1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}"
                                class="btn btn-clear-search"
-                               title="Clear Search">×</a>
+                               title="Clear Search"><i class="fas fa-times"></i></a>
                         {% endif %}
                     </div>
                 </div>
-                {# --- Collapsible Date Filter Section --- #}
                 <div class="form-section">
                     <button type="button"
                             class="date-filter-toggle"
                             onclick="toggleDateFilters()">
-                        Date Filters <span class="toggle-icon">+</span>
+                        Date Filters <span class="toggle-icon"><i class="fas fa-calendar-alt"></i></span>
                     </button>
                     <div id="date-filter-content"
                          class="date-filter-content"
                          style="display: none">
-                        {# Initially hidden #}
                         <div class="date-inputs">
                             <label for="start_date">From:</label>
                             <input type="date"
@@ -93,11 +83,9 @@
                                    id="end_date"
                                    name="end_date"
                                    value="{{ current_end_date }}">
-                            {# Submit button now applies date + search + profile #}
-                            <button type="submit" class="btn btn-filter">Apply Filters</button>
-                            {# Clear link only clears dates, keeps sort/profile/search #}
+                            <button type="submit" class="btn btn-filter"><i class="fas fa-filter"></i> Apply Filters</button>
                             <a href="{{ url_for('list_articles', sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term) }}"
-                               class="btn btn-clear">Clear Dates</a>
+                               class="btn btn-clear"><i class="fas fa-times-circle"></i> Clear Dates</a>
                         </div>
                         <div class="preset-buttons">
                             {% set presets = {
@@ -108,22 +96,18 @@
                                 "last_12m": "Last 12mo"
                             } %}
                             {% for key, label in presets.items() %}
-                                {# Preset links preserve sort/profile/search #}
                                 <a href="{{ url_for('list_articles', preset=key, sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term) }}"
                                    class="btn btn-preset {{ 'active' if current_preset == key else '' }}">{{ label }}</a>
                             {% endfor %}
                         </div>
                     </div>
-                    {# End #date-filter-content #}
                 </div>
-                {# --- Sort Controls Section --- #}
                 <div class="sort-controls form-section">
                     Sort by:
                     {% set sort_fields = {"published_date": "Published Date", "impact_score": "Impact Score"} %}
                     {% for field, label in sort_fields.items() %}
                         {% set is_active = (current_sort_by == field) %}
                         {% set next_direction = 'asc' if (is_active and current_direction == 'desc') else 'desc' %}
-                        {# Sorting links preserve date/profile/search #}
                         <a href="{{ url_for('list_articles', page=1, sort_by=field, direction=next_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
                            class="sort-link {{ 'active' if is_active else '' }}">{{ label }}
                             {% if is_active %}<span class="sort-indicator">{{ '▲' if current_direction == 'asc' else '▼' }}</span>{% endif %}
@@ -131,110 +115,82 @@
                     {% endfor %}
                 </div>
             </form>
-            {# End Form #}
             <ul class="article-list">
                 {% for article in articles %}
                     <li class="article-item">
-                        {# --- Article Image Column --- #}
                         <div class="article-image-container">
                             {% if article.image_url %}
                                 <img src="{{ article.image_url }}"
                                     alt="Image for {{ article.title | default("") }}"
                                     class="article-image"
-                                    loading="lazy" {# Add lazy loading #}
+                                    loading="lazy"
                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                    {# Hide image and show placeholder on error #}
-                                {% else %}
-                                    {# Show placeholder immediately if no image URL #}
-                                    <div class="article-image-placeholder">
-                                        <svg xmlns="http://www.w3.org/2000/svg"
-                                             viewBox="0 0 24 24"
-                                             fill="currentColor"
-                                             class="placeholder-icon">
-                                            <path d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06l4.47-4.47a.75.75 0 0 1 1.06 0l3.001 3.001 1.504-1.504a.75.75 0 0 1 1.06 0l4.91 4.91V6a.75.75 0 0 0-.75-.75H3.75A.75.75 0 0 0 3 6v10.06Z" />
-                                        </svg>
-                                        <span>No Image</span>
-                                    </div>
-                                {% endif %}
-                                {# Separate placeholder div for JS onerror scenario #}
-                                {% if article.image_url %}
-                                    <div class="article-image-placeholder" style="display: none;">
-                                        <svg xmlns="http://www.w3.org/2000/svg"
-                                             viewBox="0 0 24 24"
-                                             fill="currentColor"
-                                             class="placeholder-icon">
-                                            <path d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.06l4.47-4.47a.75.75 0 0 1 1.06 0l3.001 3.001 1.504-1.504a.75.75 0 0 1 1.06 0l4.91 4.91V6a.75.75 0 0 0-.75-.75H3.75A.75.75 0 0 0 3 6v10.06Z" />
-                                        </svg>
-                                        <span>No Image</span>
-                                    </div>
-                                {% endif %}
-                            </div>
-                            <div class="article-text-content">
-                                <span class="profile-badge list-badge">{{ article.feed_profile }}</span>
-                                {% if article.impact_score is not none %}
-                                    <span class="impact-score score-{{ article.impact_score }}"
-                                          title="Impact Score: {{ article.impact_score }}/10">
-                                        {{ article.impact_score }}
-                                    </span>
-                                {% else %}
-                                    <span class="impact-score score-unknown" title="Impact Score: Not Rated">-</span>
-                                {% endif %}
-                                <div class="article-link-wrapper">
-                                  <a href="{{ url_for('view_article', article_id=article['id']) }}"
-                                     class="article-link">{{ article['title'] | default("Untitled Article") }}</a> |
-                                  <a href="{{ article['url'] }}" class="article-link-original">Original</a>
+                            {% else %}
+                                <div class="article-image-placeholder">
+                                    <i class="fas fa-image"></i> No Image
                                 </div>
-                                <span class="article-meta">
-                                    ({{ article['feed_source'] | default("Unknown Source") }} / {{ article['published_date'] | datetimeformat }})
+                            {% endif %}
+                        </div>
+                        <div class="article-text-content">
+                            <span class="profile-badge list-badge">{{ article.feed_profile }}</span>
+                            {% if article.impact_score is not none %}
+                                <span class="impact-score score-{{ article.impact_score }}"
+                                      title="Impact Score: {{ article.impact_score }}/10">
+                                    {{ article.impact_score }}
                                 </span>
-                                <div class="article-summary-list">{{ article['processed_content_html'] | safe }}</div>
+                            {% else %}
+                                <span class="impact-score score-unknown" title="Impact Score: Not Rated">-</span>
+                            {% endif %}
+                            <div class="article-link-wrapper">
+                              <a href="{{ url_for('view_article', article_id=article['id']) }}"
+                                 class="article-link">{{ article['title'] | default("Untitled Article") }}</a> |
+                              <a href="{{ article['url'] }}" class="article-link-original">Original</a>
                             </div>
-                        </li>
-                    {% endfor %}
-                </ul>
-                {# --- PAGINATION CONTROLS --- #}
-                {% if total_pages > 1 %}
-                    <div class="pagination">
-                        {# *** Update Pagination Links to include search *** #}
-                        {% if page > 1 %}
-                            <a href="{{ url_for('list_articles', page=page-1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
-                               class="page-link prev">« Previous</a>
-                        {% else %}
-                            <span class="page-link disabled prev">« Previous</span>
-                        {% endif %}
-                        <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
-                        {% if page < total_pages %}
-                            <a href="{{ url_for('list_articles', page=page+1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
-                               class="page-link next">Next »</a>
-                        {% else %}
-                            <span class="page-link disabled next">Next »</span>
-                        {% endif %}
-                    </div>
-                {% endif %}
-                {# --- END PAGINATION CONTROLS --- #}
-            </div>
-            {# End container #}
-            {# --- Simple Inline JS for Toggle --- #}
-            <script>
-        function toggleDateFilters() {
-            var content = document.getElementById('date-filter-content');
-            var icon = document.querySelector('.date-filter-toggle .toggle-icon');
-            if (content.style.display === 'none' || content.style.display === '') {
-                content.style.display = 'block'; // Or 'flex' if using flexbox inside
-                icon.textContent = '-';
-            } else {
-                content.style.display = 'none';
-                icon.textContent = '+';
+                            <span class="article-meta">
+                                ({{ article['feed_source'] | default("Unknown Source") }} / {{ article['published_date'] | datetimeformat }})
+                            </span>
+                            <div class="article-summary-list">{{ article['processed_content_html'] | safe }}</div>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+            {% if total_pages > 1 %}
+                <div class="pagination">
+                    {% if page > 1 %}
+                        <a href="{{ url_for('list_articles', page=page-1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
+                           class="page-link prev"><i class="fas fa-chevron-left"></i> Previous</a>
+                    {% else %}
+                        <span class="page-link disabled prev"><i class="fas fa-chevron-left"></i> Previous</span>
+                    {% endif %}
+                    <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
+                    {% if page < total_pages %}
+                        <a href="{{ url_for('list_articles', page=page+1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
+                           class="page-link next">Next <i class="fas fa-chevron-right"></i></a>
+                    {% else %}
+                        <span class="page-link disabled next">Next <i class="fas fa-chevron-right"></i></span>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+        <script>
+            function toggleDateFilters() {
+                var content = document.getElementById('date-filter-content');
+                var icon = document.querySelector('.date-filter-toggle .toggle-icon');
+                if (content.style.display === 'none' || content.style.display === '') {
+                    content.style.display = 'block';
+                    icon.textContent = '-';
+                } else {
+                    content.style.display = 'none';
+                    icon.textContent = '+';
+                }
             }
-        }
-        // Optional: Initially open if dates are set
-        document.addEventListener('DOMContentLoaded', function() {
-            var startDate = document.getElementById('start_date').value;
-            var endDate = document.getElementById('end_date').value;
-            if (startDate || endDate) {
-                 toggleDateFilters(); // Open if dates are present on load
-            }
-        });
-            </script>
-        </body>
-    </html>
+            document.addEventListener('DOMContentLoaded', function() {
+                var startDate = document.getElementById('start_date').value;
+                var endDate = document.getElementById('end_date').value;
+                if (startDate || endDate) {
+                    toggleDateFilters();
+                }
+            });
+        </script>
+    </body>
+</html>

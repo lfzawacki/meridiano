@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Meridiano Briefings</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome-all.min.css') }}">
 </head>
 <body>
     <div class="container">
         {% include 'header.html' %}
 
-        <h2>Generated Briefings</h2> {# Updated Heading #}
+        <h2>Generated Briefings</h2>
 
         <div class="profile-filter">
             Filter by Profile:
@@ -24,7 +25,6 @@
             {% endfor %}
         </div>
 
-        {# List of Briefings #}
         {% if briefs %}
             <ul class="brief-list">
                 {% for brief in briefs %}
@@ -33,7 +33,7 @@
                         Briefing from {{ brief['generated_at'] | datetimeformat('%Y-%m-%d %H:%M') }}
                     </a>
                     <span class="profile-badge list-badge">{{ brief['feed_profile'] }}</span>
-                    <span class="brief-meta"> (ID: {{ brief['id'] }})</span> {# Optional: Show ID #}
+                    <span class="brief-meta"> (ID: {{ brief['id'] }})</span>
                 </li>
                 {% endfor %}
             </ul>

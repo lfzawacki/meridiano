@@ -3,18 +3,19 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Briefing - {{ generation_time }} | Meridiano</title> {# Updated Title #}
+    <title>Briefing - {{ generation_time }} | Meridiano</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome-all.min.css') }}">
 </head>
 <body>
     <div class="container">
         {% include 'header.html' %}
 
         <h2>Intelligence Brief</h2>
-        <p class="timestamp">Generated: {{ generation_time }} (ID: {{ brief_id }})</p> {# Added ID #}
+        <p class="timestamp">Generated: {{ generation_time }} (ID: {{ brief_id }})</p>
         <hr>
         <div class="brief-content">
-            {{ brief_content|safe }} {# Render the HTML converted from Markdown #}
+            {{ brief_content|safe }}
         </div>
     </div>
 </body>

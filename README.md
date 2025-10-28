@@ -7,7 +7,10 @@
 
 Meridiano cuts through the news noise by scraping configured sources, analyzing stories with AI (summaries, impact ratings), clustering related events, and delivering concise daily briefs via a web interface.
 
-https://github.com/user-attachments/assets/269cce1b-4bfc-404c-9f05-7c1c7c5d1e0a
+Based on the original project <https://github.com/iliane5/meridian>
+
+https://github.com/user-attachments/assets/2caf1844-5112-4a89-96b5-c018ca308c99
+
 
 ## Why It Exists
 

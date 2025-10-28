@@ -12,7 +12,6 @@ from sqlmodel import select
 import config_base as config
 from models import Article, Brief, create_db_and_tables, get_session
 
-
 def migrate_from_sqlite():
     """
     Migrate data from SQLite database to the configured database (PostgreSQL/SQLite)
@@ -42,6 +41,7 @@ def migrate_from_sqlite():
 
         with get_session() as session:
             for row in cursor:
+                row = dict(row)
                 # Check if article already exists
                 existing = session.get(Article, row["id"])
                 if existing:
@@ -103,6 +103,7 @@ def migrate_from_sqlite():
 
         with get_session() as session:
             for row in cursor:
+                row = dict(row)
                 # Check if brief already exists
                 existing = session.get(Brief, row["id"])
                 if existing:

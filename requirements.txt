@@ -10,4 +10,7 @@ markdown # For rendering Markdown in Flask
 schedule # Optional: if using Python-based scheduling
 openai # Add openai to requirements
 beautifulsoup4
-lxml 
+lxml
+# SQLModel and PostgreSQL dependencies
+sqlmodel
+psycopg2-binary # PostgreSQL adapter

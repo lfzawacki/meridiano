@@ -1,5 +1,11 @@
 # simple-meridian/config.py
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
 # Used in process_articles (operates globally, so uses default)
 PROMPT_ARTICLE_SUMMARY = """
 Summarize the key points of this news article objectively in 2-4 sentences.
@@ -59,7 +65,7 @@ EMBEDDING_MODEL = "intfloat/multilingual-e5-large-instruct"
 
 # Approximate number of clusters to aim for. Fine-tune based on results.
 # Alternatively, use algorithms like DBSCAN that don't require specifying k.
-N_CLUSTERS = 10 # Example, adjust as needed
+N_CLUSTERS = 10  # Example, adjust as needed
 
 # Minimum number of articles required to attempt clustering/briefing
 MIN_ARTICLES_FOR_BRIEFING = 5
@@ -70,4 +76,19 @@ MANUALLY_ADDED_PROFILE_NAME = 'manual'
 DEFAULT_FEED_PROFILE = 'default'
 
 # --- Other ---
-DATABASE_FILE = "meridian.db"
+DATABASE_FILE = "meridian.db"  # Keep for backward compatibility
+
+# Database configuration
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATABASE_FILE}")
+
+# API Keys
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
+EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY")
+
+# Flask configuration
+FLASK_SECRET_KEY = os.getenv(
+    "FLASK_SECRET_KEY", "dev-key-change-in-production"
+)
+FLASK_ENV = os.getenv("FLASK_ENV", "development")

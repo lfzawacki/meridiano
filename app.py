@@ -10,6 +10,7 @@ import os
 
 import config_base as config # Use base config for app settings
 import database # Import our database functions
+from sqlmodel import select
 
 from utils import scrape_single_article_details, format_datetime
 
@@ -210,14 +211,15 @@ def add_manual_article():
             flash('Invalid URL. Please include http:// or https://.', 'error')
             return redirect(url_for('add_manual_article'))
 
-        # Check if article already exists
-        conn = database.get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM articles WHERE url = ?", (article_url,))
-        exists = cursor.fetchone()
-        conn.close()
-        if exists:
-            flash(f'Article from URL "{article_url}" already exists (ID: {exists["id"]}).', 'warning')
+        # Check if article already exists (SQLModel session)
+        session = database.get_db_connection()
+        try:
+            stmt = select(database.Article).where(database.Article.url == article_url)
+            existing_article = session.exec(stmt).first()
+        finally:
+            session.close()
+        if existing_article:
+            flash(f'Article from URL "{article_url}" already exists (ID: {existing_article.id}).', 'warning')
             return redirect(url_for('list_articles'))
 
         # --- Attempt to scrape details immediately ---

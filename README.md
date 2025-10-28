@@ -39,59 +39,6 @@ Built for the curious mind wanting depth and relevance without the endless time 
 
 ## How It Works
 
-```mermaid
-graph TD
-    A["Feed Profile Config (e.g., feeds/tech.py)"] --> B("run_briefing.py CLI");
-    B -- Scrape --> C{"RSS Feeds"};
-    C -- feedparser --> D["Article Metadata + URL"];
-    D -- "requests/bs4" --> E["Fetch HTML + OG Image"];
-    E -- trafilatura --> F["Extract Content"];
-    G["RSS Image?"] --> H{"Select Image URL"};
-    E -- "og_image" --> H;
-    F & H --> I("Add Article to DB");
-    I -- feed_profile --> J["Articles Table (SQLite)"];
-    J -- image_url --> J;
-    database_init_db1["database.init_db"] -- Creates --> J;
-    database_init_db2["database.init_db"] -- Creates --> K["articles_fts Table (SQLite)"];
-    database_init_db3["database.init_db"] -- Creates --> L["Briefs Table (SQLite)"];
-    I -- Trigger --> K;
-
-    B -- Process --> M{"Fetch Unprocessed Articles"};
-    M -- feed_profile --> J;
-    M --> N["LLM Article Summary"];
-    N -- "Deepseek API" --> N;
-    N -- embedding_client --> O["Generate Embeddings"];
-    O -- "TogetherAI/Other API" --> O;
-    N & O --> P["Update Article Processing"];
-    P --> J;
-
-    B -- Rate --> Q{"Fetch Unrated Articles"};
-    Q -- feed_profile --> J;
-    Q -- Summary --> R["LLM Impact Rating"];
-    R -- "Deepseek API" --> R;
-    R --> S["Update Article Rating"];
-    S --> J;
-
-    B -- Generate Brief --> T{"Fetch Recent Processed Articles"};
-    T -- feed_profile --> J;
-    T -- Embeddings --> U["Cluster Articles (KMeans)"];
-    U --> V["Analyze Clusters"];
-    V -- "LLM Cluster Analysis" --> V;
-    V -- "Deepseek API / Profile Prompt" --> V;
-    V --> W["Synthesize Brief"];
-    W -- "LLM Brief Synthesis" --> W;
-    W -- "Deepseek API / Profile Prompt" --> W;
-    W --> X["Save Brief to DB"];
-    X -- feed_profile --> L;
-
-    Y["app.py (Flask Server)"] --> Z{"Web UI Request"};
-    Z -- "Filters/Sort/Search" --> Y;
-    Y -- Reads --> J;
-    Y -- Reads --> L;
-    Y --> AA["Render HTML Template"];
-    AA --> BB["User Browser"];
-```
-
 1.  **Configuration**: Load base settings (`config_base.py`) and feed-specific settings (`feeds/<profile_name>.py`), including RSS feeds and custom prompts.
 2.  **CLI Control**: `run_briefing.py` orchestrates the stages based on CLI arguments (`--feed`, `--scrape`, `--process`, `--rate`, `--generate`, `--all`).
 3.  **Scraping**: Fetches RSS, extracts article content, attempts to find an image (RSS or OG tag), and saves metadata (including `feed_profile`) to the `articles` table. FTS triggers populate `articles_fts`.
@@ -231,6 +178,11 @@ Use the command line to run different stages for specific feed profiles.
 6. Commit your changes (git commit -am 'Add some feature').
 7. Push to your branch (git push origin feature/your-feature-name).
 8. Create a Pull Request on GitHub, describing your changes clearly.
+
+## Credits
+
+* Original concept and project: https://github.com/iliane5/meridian
+* Icon: https://www.svgrepo.com/svg/405007/compass
 
 ## License
 

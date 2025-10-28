@@ -1,9 +1,15 @@
-<div class="header">
-    {% set profile_params = {'feed_profile': current_feed_profile} if current_feed_profile is defined and current_feed_profile else {} %}
-    <div class="navigation">
-      <a href="{{ url_for('index', **profile_params) }}">Briefs</a> | <a href="{{ url_for('list_articles', **profile_params) }}">Articles</a>
-      <a href="{{ url_for('add_manual_article') }}" class="nav-button add-article-btn" title="Add New Article">
-        <i class="fas fa-plus"></i> Add Article
-      </a>
+{% set profile_params = {'feed_profile': current_feed_profile} if current_feed_profile is defined and current_feed_profile else {} %}
+<header class="main-header">
+    <div class="header-content">
+        <a href="{{ url_for('index', **profile_params) }}" class="logo">Meridian</a>
+        <nav class="main-nav">
+            <a href="{{ url_for('index', **profile_params) }}">Briefs</a>
+            <a href="{{ url_for('list_articles', **profile_params) }}">Articles</a>
+        </nav>
+        <div class="header-actions">
+            <a href="{{ url_for('add_manual_article') }}" class="btn btn-add-article" title="Add New Article">
+                <i class="fas fa-plus"></i> Add Article
+            </a>
+        </div>
     </div>
-</div>
+</header>

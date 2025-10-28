@@ -18,23 +18,58 @@ body {
     box-shadow: 0 2px 5px rgba(0,0,0,0.08);
 }
 
-/* --- Navigation Styling --- */
-.navigation {
-    margin-bottom: 20px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #eee;
-    text-align: right; /* Align nav links to the right */
-    font-size: 0.9em;
+/* --- Header Styling --- */
+.main-header {
+    background-color: #ffffff;
+    border-bottom: 1px solid #dee2e6;
+    padding: 10px 0;
+    margin-bottom: 25px; /* Space below header */
 }
 
-.navigation a {
+.header-content {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 1.5em;
+    font-weight: 600;
+    color: #212529;
     text-decoration: none;
 }
-
-.navigation a:hover {
-    text-decoration: underline;
+.logo:hover {
+    color: #0056b3;
 }
-/* --- End Navigation Styling --- */
+
+.main-nav {
+    display: flex;
+    gap: 25px;
+    flex-grow: 1; /* Pushes actions to the right */
+    margin-left: 40px;
+}
+
+.main-nav a {
+    text-decoration: none;
+    color: #495057;
+    font-size: 1.0em;
+    padding: 5px 0;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.main-nav a:hover {
+    color: #0056b3;
+    border-bottom-color: #007bff;
+}
+
+.header-actions {
+    /* Container for buttons or user info */
+}
+/* --- End Header Styling --- */
 
 
 h1 {
@@ -789,44 +824,24 @@ blockquote {
     border-color: #0a58ca;
 }
 
-/* --- Navigation Button Styling --- */
-.navigation {
-    /* ... existing styles ... */
-    display: flex; /* Use flex for better alignment of nav items */
-    justify-content: space-between; /* Space out main nav and add button */
+/* --- Header Action Button Styling --- */
+.btn-add-article {
+    color: #198754; /* Green text */
+    background-color: #e8f3ed; /* Light green background */
+    border: 1px solid #a3d0b9;
+    font-weight: 500;
+    display: inline-flex;
     align-items: center;
-}
-.nav-button { /* General style for nav links acting as buttons */
-    padding: 5px 10px;
-    text-decoration: none;
-    border-radius: 4px;
-    font-size: 0.9em;
-    display: inline-flex; /* Align icon and text */
-    align-items: center;
-    gap: 5px; /* Space between icon and text */
-}
-.nav-separator {
-    color: #ccc;
-    margin: 0 8px;
+    gap: 6px; /* Space between icon and text */
+    margin: 0; /* Override any margin from .btn */
 }
 
-.add-article-btn {
+.btn-add-article:visited {
+    color: #198754;
+}
+
+.btn-add-article:hover {
     color: #fff;
-    background-color: #198754; /* Green for add */
-    border: 1px solid #198754;
-}
-
-.add-article-btn:visited {
-  color: #fff;
-}
-
-.add-article-btn:hover {
-    background-color: #157347;
-    border-color: #146c43;
-}
-
-.nav-icon {
-    width: 1em; /* Relative to font size */
-    height: 1em;
-    vertical-align: middle; /* Better alignment */
+    background-color: #198754; /* Solid green on hover */
+    border-color: #198754;
 }

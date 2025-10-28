@@ -1,15 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-        <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome-all.min.css') }}">
-        <title>Articles
-            {% if current_feed_profile %}[{{ current_feed_profile }}]{% endif %}
-            {% if current_search_term %}| Search: {{ current_search_term }}{% endif %}
-        (Page {{ page }}) - Meridiano</title>
-    </head>
+    {% set title =
+        "Articles" ~
+        (current_feed_profile and ("[" ~ current_feed_profile ~ "]") or "") ~
+        (current_search_term and (" | Search: " ~ current_search_term) or "") ~
+        " (Page " ~ page ~ ")"
+    %}
+    {% include 'head.html' %}
+
     <body>
         <div class="container">
             {% include 'header.html' %}

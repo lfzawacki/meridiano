@@ -1,12 +1,7 @@
 <!doctype html>
 <html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Article: {{ article['title'] | default('Untitled') }} | Meridiano</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome-all.min.css') }}">
-</head>
+{% set title = "Article: %s" % article.get('title', 'Untitled') %}
+{% include 'head.html' %}
 <body>
     <div class="container">
         {% include 'header.html' %}
@@ -15,7 +10,7 @@
             {% if article.image_url %}
                 <a href="{{ article.url }}" target="_blank" title="View Original Article">
                     <img src="{{ article.image_url }}"
-                         alt="Image for {{ article.title | default('') }}"
+                         alt="Image for {{ title }}"
                          class="article-detail-image"
                          onerror="this.parentElement.style.display='none'; document.getElementById('detail-placeholder').style.display='flex';">
                 </a>
@@ -33,7 +28,7 @@
 
         <dl class="article-details">
             <dt>Title</dt>
-            <dd>{{ article['title'] | default('N/A') }}</dd>
+            <dd>{{ title }}</dd>
 
             <dt>Impact Score</dt>
             <dd>

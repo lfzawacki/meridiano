@@ -1,12 +1,7 @@
 <!doctype html>
 <html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Add New Article - Meridiano</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome-all.min.css') }}">
-</head>
+{% set title = "Add Article" %}
+{% include 'head.html' %}
 <body>
     <div class="container">
         {% include 'header.html' %}

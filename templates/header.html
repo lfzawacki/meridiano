@@ -1,7 +1,10 @@
 {% set profile_params = {'feed_profile': current_feed_profile} if current_feed_profile is defined and current_feed_profile else {} %}
 <header class="main-header">
     <div class="header-content">
-        <a href="{{ url_for('index', **profile_params) }}" class="logo">Meridian</a>
+        <a href="{{ url_for('index', **profile_params) }}" class="logo">
+            <img src="{{ url_for('static', filename='icons/icon.svg') }}" alt="Meridiano Icon" style="height: 1.2em; vertical-align: middle; margin-right: 8px;">
+            Meridiano
+        </a>
         <nav class="main-nav">
             <a href="{{ url_for('index', **profile_params) }}">Briefs</a>
             <a href="{{ url_for('list_articles', **profile_params) }}">Articles</a>

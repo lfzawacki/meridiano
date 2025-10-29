@@ -23,6 +23,8 @@ except ImportError:
     exit(1)
 
 import database
+from models import Article, get_session
+from sqlmodel import select
 
 # --- Setup ---
 load_dotenv()
@@ -105,11 +107,8 @@ def scrape_articles(feed_profile, rss_feeds): # Added params
             if not url: continue
 
             # --- Check if article exists ---
-            conn = database.get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT id FROM articles WHERE url = ?", (url,))
-            exists = cursor.fetchone()
-            conn.close()
+            with get_session() as session:
+                exists = session.exec(select(Article).where(Article.url == url)).first()
             if exists: continue
             # --- End Check ---
 

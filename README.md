@@ -117,6 +117,29 @@ Built for the curious mind wanting depth and relevance without the endless time 
 6.  **Initialize Database:**
     *   The database (`meridian.db`) and its schema (including FTS tables) are created automatically the first time you run `run_briefing.py` or `app.py`.
 
+## Using PostgreSQL Instead of SQLite (Optional)
+
+If you prefer to use PostgreSQL instead of SQLite, follow these steps:
+
+1.  **Install PostgreSQL**: Ensure you have PostgreSQL installed and running on your machine or server.
+    ```bash
+        docker run --name meridiano-postgres -e POSTGRES_USER=username -e POSTGRES_PASSWORD=password -e POSTGRES_DB=meridiano_db -p 5432:5432 -d postgres
+    ```
+2.  Configure your `.env` file with your PostgreSQL connection details:
+    ```dotenv
+    DATABASE_URL="postgresql://username:password@localhost:5432/meridiano_db"
+    ```
+3.  Initialize the Database
+    ```bash
+        python models.py
+    ```
+4.  (Optional) Migrate existing data from SQLite (if applicable):
+    ```bash
+        python migrate.py migrate
+        python migrate.py verify
+    ```
+
+
 ## Running the Application
 
 Meridiano consists of a command-line script (`run_briefing.py`) for data processing and a web server (`app.py`) for viewing results.

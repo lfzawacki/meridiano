@@ -9,11 +9,10 @@ import time
 import numpy as np
 from sklearn.cluster import KMeans
 from dotenv import load_dotenv
-import openai
 import argparse
+import litellm
 
 from urllib.parse import urljoin
-
 from utils import fetch_article_content_and_og_image
 
 try:
@@ -28,20 +27,16 @@ from sqlmodel import select
 
 # --- Setup ---
 load_dotenv()
-API_KEY = os.getenv("DEEPSEEK_API_KEY")
-EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY")
 
-if not API_KEY:
-    raise ValueError("DEEPSEEK_API_KEY not found in .env file")
+client = {
+    "api_base": os.getenv("LLM_API_BASE_URL"),
+}
 
-if not EMBEDDING_API_KEY:
-    raise ValueError("EMBEDDING_API_KEY not found in .env file")
+embedding_client = {
+    "api_base": os.getenv("EMBEDDING_API_BASE_URL"),
+}
 
-# Use the correct client for Deepseek, not OpenAI
-client = openai.Client(api_key=API_KEY, base_url="https://api.deepseek.com/v1")
-embedding_client = openai.Client(api_key=EMBEDDING_API_KEY, base_url="https://api.together.xyz/v1")
-
-def call_deepseek_chat(prompt, model=config.DEEPSEEK_CHAT_MODEL, system_prompt=None):
+def call_deepseek_chat(prompt, model=config.LLM_CHAT_MODEL, system_prompt=None):
     """Calls the Deepseek Chat API."""
     messages = []
     if system_prompt:
@@ -49,13 +44,14 @@ def call_deepseek_chat(prompt, model=config.DEEPSEEK_CHAT_MODEL, system_prompt=N
     messages.append({"role": "user", "content": prompt})
 
     try:
-        response = client.chat.completions.create(
+        response = litellm.completion(
+            api_base=client["api_base"],
             model=model,
             messages=messages,
             max_tokens=2048, # Adjust as needed
             temperature=0.7, # Adjust for desired creativity/factuality
         )
-        return response.choices[0].message.content.strip()
+        return response["choices"][0]["message"]["content"].strip()
     except Exception as e:
         print(f"Error calling Deepseek Chat API: {e}")
         # Implement retry logic or better error handling here if needed
@@ -67,16 +63,17 @@ def get_deepseek_embedding(text, model=config.EMBEDDING_MODEL):
     print(f"INFO: Attempting to get embedding for text snippet: '{text[:50]}...'")
 
     try:
-         response = embedding_client.embeddings.create(
-             model=model, # Use the actual model name from Deepseek docs
-             input=[text] # API likely expects a list of strings
-         )
-         # Access the embedding vector based on the actual API response structure
-         if response.data and len(response.data) > 0:
-              return response.data[0].embedding
-         else:
-              print(f"Warning: No embedding returned for text.")
-              return None
+        response = litellm.embedding(
+            api_base=embedding_client["api_base"],
+            model=model,
+            input=[text],
+        )
+        # Access the embedding vector based on the actual API response structure
+        if response["data"] and len(response["data"]) > 0:
+            return response["data"][0]["embedding"]
+        else:
+            print(f"Warning: No embedding returned for text.")
+            return None
     except Exception as e:
          print(f"Error calling Embedding API: {e}")
          return None
@@ -171,7 +168,6 @@ def scrape_articles(feed_profile, rss_feeds): # Added params
 def process_articles(feed_profile, effective_config):
     """Processes unprocessed articles: summarizes and generates embeddings."""
     print("\n--- Starting Article Processing ---")
-    chat_model = getattr(effective_config, 'DEEPSEEK_CHAT_MODEL', 'deepseek-chat') # Get model from effective config
     summary_prompt_template = getattr(effective_config, 'PROMPT_ARTICLE_SUMMARY', config.PROMPT_ARTICLE_SUMMARY)
 
     unprocessed = database.get_unprocessed_articles(feed_profile, 1000)
@@ -189,7 +185,7 @@ def process_articles(feed_profile, effective_config):
         summary_prompt = summary_prompt_template.format(
             article_content=article['raw_content'][:4000] # Limit context
         )
-        summary = call_deepseek_chat(summary_prompt, model=chat_model)
+        summary = call_deepseek_chat(summary_prompt)
 
         if not summary:
             print(f"Skipping article {article['id']} due to summarization error.")
@@ -220,7 +216,6 @@ def rate_articles(feed_profile, effective_config):
         print("Skipping rating: Deepseek client not initialized.")
         return
 
-    chat_model = getattr(effective_config, 'DEEPSEEK_CHAT_MODEL', 'deepseek-chat')
     rating_prompt_template = getattr(effective_config, 'PROMPT_IMPACT_RATING', config.PROMPT_IMPACT_RATING)
 
     unrated = database.get_unrated_articles(feed_profile, 1000)
@@ -241,7 +236,7 @@ def rate_articles(feed_profile, effective_config):
         rating_prompt = rating_prompt_template.format(
             summary=summary
         )
-        rating_response = call_deepseek_chat(rating_prompt, model=chat_model)
+        rating_response = call_deepseek_chat(rating_prompt)
 
         impact_score = None
         if rating_response:

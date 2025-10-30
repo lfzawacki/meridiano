@@ -103,9 +103,13 @@ Built for the curious mind wanting depth and relevance without the endless time 
     *   Create a file named `.env` in the project root.
     *   Add your API keys:
         ```dotenv
-        DEEPSEEK_API_KEY="your_deepseek_api_key_here"
-        EMBEDDING_API_KEY="your_togetherai_or_other_embedding_api_key_here"
+        LLM_CHAT_MODEL=deepseek/deepseek-chat
+        EMBEDDING_MODEL=intfloat/multilingual-e5-large-instruct
+        DEEPSEEK_API_KEY=your_deepseek_api_key_here
+        TOGETHERAI_API_KEY=your_togetherai_api_key_here
         ```
+    see https://docs.litellm.ai/docs/providers for more details on provider setup
+
 
 5.  **Configure Feeds and Prompts:**
     *   Review `config_base.py` for default settings and prompts.

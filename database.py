@@ -357,6 +357,18 @@ def save_brief(
             feed_profile=feed_profile,
             generated_at=datetime.now(),
         )
+
+        # Guarantee unique and sequential id
+        if "postgresql" in config.DATABASE_URL.lower():
+            try:
+                session.exec(
+                    text(
+                        "SELECT setval(pg_get_serial_sequence('briefs','id'), COALESCE((SELECT MAX(id) FROM briefs), 0))"
+                    )
+                )
+            except Exception:
+                pass
+
         session.add(brief)
         session.commit()
         session.refresh(brief)  # Get the ID

@@ -350,6 +350,16 @@ def save_brief(
 ) -> int:
     """Saves the generated brief including its feed profile."""
     with get_session() as session:
+        if "postgresql" in config.DATABASE_URL.lower():
+            try:
+                session.exec(
+                    text(
+                        "SELECT setval(pg_get_serial_sequence('briefs','id'), COALESCE((SELECT MAX(id) FROM briefs), 0))"
+                    )
+                )
+            except Exception as e:
+                print(f"Warning: Could not set sequence for briefs table in PostgreSQL. Exception: {e}")
+
         ids_json = json.dumps(contributing_article_ids)
         brief = Brief(
             brief_markdown=brief_markdown,

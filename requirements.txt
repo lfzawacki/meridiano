@@ -15,3 +15,7 @@ lxml_html_clean
 # SQLModel and PostgreSQL dependencies
 sqlmodel
 psycopg2-binary # PostgreSQL adapter
+
+# Testing dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0

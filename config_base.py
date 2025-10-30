@@ -82,9 +82,7 @@ DATABASE_FILE = "meridian.db"  # Keep for backward compatibility
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATABASE_FILE}")
 
 # API Keys
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
 EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY")
 
 # Flask configuration

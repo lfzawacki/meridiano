@@ -6,6 +6,7 @@ RUN mkdir /app
 COPY ./requirements.txt /app/requirements.txt
 
 WORKDIR /app
+COPY . .
 RUN uv venv .venv; source .venv/bin/activate; uv pip install -r requirements.txt
 EXPOSE 5000
 

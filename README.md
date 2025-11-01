@@ -168,6 +168,44 @@ Use the command line to run different stages for specific feed profiles.
     gunicorn --bind 0.0.0.0:5000 app:app
     ```
 
+## Running on Docker
+
+Alternatively to the steps above, you can run Meridiano using Docker.
+There is a ./docker directory with a `Dockerfile` and `compose.yml` file to help you get started.
+We also provide a sample `Makefile` to simplify common tasks.
+
+**Build the Docker image:**
+
+```bash
+make build
+```
+
+**Run the application using Docker Compose:**
+
+To run the web application and have it accessible on port 5000 while also running the postgres database, use:
+
+```bash
+make up
+```
+
+To migrate the database (create tables), use:
+
+```bash
+make migrate
+```
+
+For running the briefing process manually inside the Docker container, use:
+
+```bash
+make run
+```
+
+If you need to pass arguments to the `run_briefing.py` script, you can do so by appending them after `make run`, like this:
+
+```bash
+make run ARGS="--feed tech --all"
+```
+
 ## Contributing
 
 1. Fork the repository on GitHub.

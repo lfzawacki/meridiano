@@ -3,6 +3,8 @@ services:
     build:
       context: ../
       dockerfile: ./docker/Dockerfile
+    env_file:
+      - ../.env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     ports:
@@ -10,7 +12,9 @@ services:
     depends_on:
       - postgres
   postgres:
-    image: postgres:15
+    image: postgres:18
+    env_file:
+      - ../.env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -18,7 +22,7 @@ services:
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
 
 volumes:
   postgres_data:

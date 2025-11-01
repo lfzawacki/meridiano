@@ -18,8 +18,10 @@ build:
 bash:
 	$(COMPOSE_COMMAND) exec web bash
 migrate:
-	$(PYTHON_COMMAND) migrate.py
+	$(PYTHON_COMMAND) migrate.py migrate
 run:
 	# Get user arguments after 'run' target
 	$(eval ARGS=$(filter-out $@,$(MAKECMDGOALS)))
 	$(PYTHON_COMMAND) run_briefing.py $(ARGS)
+
+.PHONY: up down logs ps build bash migrate run app

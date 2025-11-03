@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.1
+## 0.0.1 [unreleased]
 
 ### Fixed
 
@@ -13,5 +13,7 @@
 ### Changed
 
 - Added logging infrastructure to `database.py`
+- update session management in `app.py`
+- enhancements in `run_briefing.py` parsing logic and error handling
 
 

@@ -257,7 +257,7 @@ def add_article(
                     # Sync the sequence to the current max(id) so nextval() will produce a fresh value.
                     session.exec(
                         text(
-                            "SELECT setval(pg_get_serial_sequence('articles','id'), COALESCE((SELECT MAX(id) FROM articles), 0))"
+                            "SELECT setval(pg_get_serial_sequence('articles','id'), COALESCE((SELECT MAX(id) FROM articles), 1))"
                         )
                     )
                 except Exception:
@@ -363,7 +363,7 @@ def save_brief(
             try:
                 session.exec(
                     text(
-                        "SELECT setval(pg_get_serial_sequence('briefs','id'), COALESCE((SELECT MAX(id) FROM briefs), 0))"
+                        "SELECT setval(pg_get_serial_sequence('briefs','id'), COALESCE((SELECT MAX(id) FROM briefs), 1))"
                     )
                 )
             except Exception:

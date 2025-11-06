@@ -1,5 +1,5 @@
 # Meridiano: Your Personal Intelligence Briefing System
-
+o
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](#) <!-- Replace with actual build status badge if you set up CI -->
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
@@ -72,6 +72,7 @@ Built for the curious mind wanting depth and relevance without the endless time 
 **Prerequisites**:
 
 *   Python 3.10 or later
+*   [UV Package Manager](https://docs.astral.sh/uv/getting-started/installation/)
 *   Git (optional, for cloning)
 *   API Keys:
     *   Deepseek API Key
@@ -87,19 +88,15 @@ Built for the curious mind wanting depth and relevance without the endless time 
 
 2.  **Create and activate a virtual environment:**
     ```bash
-    python -m venv venv
+    uv sync # Create virtual environment and install dependencies
     # On macOS/Linux:
-    source venv/bin/activate
+    source .venv/bin/activate
     # On Windows:
-    .\venv\Scripts\activate
+    .\.venv\Scripts\activate
+    ```
     ```
 
-3.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  **Configure API Keys:**
+3.  **Configure API Keys:**
     *   Create a file named `.env` in the project root.
     *   Add your API keys:
         ```dotenv
@@ -107,14 +104,14 @@ Built for the curious mind wanting depth and relevance without the endless time 
         EMBEDDING_API_KEY="your_togetherai_or_other_embedding_api_key_here"
         ```
 
-5.  **Configure Feeds and Prompts:**
+4.  **Configure Feeds and Prompts:**
     *   Review `config_base.py` for default settings and prompts.
     *   Create a `feeds/` directory in the project root.
     *   Inside `feeds/`, create profile configuration files (e.g., `default.py`, `tech.py`, `brazil.py`).
     *   Each `feeds/*.py` file **must** contain an `RSS_FEEDS = [...]` list.
     *   Optionally, define `PROMPT_CLUSTER_ANALYSIS` or `PROMPT_BRIEF_SYNTHESIS` in a `feeds/*.py` file to override the defaults from `config_base.py` for that specific profile. Define `EMBEDDING_MODEL` if overriding the default.
 
-6.  **Initialize Database:**
+5.  **Initialize Database:**
     *   The database (`meridian.db`) and its schema (including FTS tables) are created automatically the first time you run `run_briefing.py` or `app.py`.
 
 ## Running the Application

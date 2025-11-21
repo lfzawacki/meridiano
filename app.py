@@ -212,12 +212,9 @@ def add_manual_article():
             return redirect(url_for('add_manual_article'))
 
         # Check if article already exists (SQLModel session)
-        session = database.get_db_connection()
-        try:
+        with database.get_db_connection() as session:
             stmt = select(database.Article).where(database.Article.url == article_url)
             existing_article = session.exec(stmt).first()
-        finally:
-            session.close()
         if existing_article:
             flash(f'Article from URL "{article_url}" already exists (ID: {existing_article.id}).', 'warning')
             return redirect(url_for('list_articles'))

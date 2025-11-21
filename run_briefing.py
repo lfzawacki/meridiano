@@ -6,6 +6,7 @@ import feedparser
 from datetime import datetime
 import json
 import time
+import re
 import numpy as np
 from sklearn.cluster import KMeans
 from dotenv import load_dotenv
@@ -73,9 +74,15 @@ def get_deepseek_embedding(text, model=config.EMBEDDING_MODEL):
          )
          # Access the embedding vector based on the actual API response structure
          if response.data and len(response.data) > 0:
-              return response.data[0].embedding
+              embedding = response.data[0].embedding
+              # Validate embedding is not empty and has valid structure
+              if embedding and len(embedding) > 0:
+                  return embedding
+              else:
+                  print(f"Warning: Empty or invalid embedding returned for text.")
+                  return None
          else:
-              print(f"Warning: No embedding returned for text.")
+              print(f"Warning: No embedding data in API response.")
               return None
     except Exception as e:
          print(f"Error calling Embedding API: {e}")
@@ -246,15 +253,20 @@ def rate_articles(feed_profile, effective_config):
         impact_score = None
         if rating_response:
             try:
-                # Attempt to extract the integer score
-                score = int(rating_response.strip().split()[0]) # Take first part in case it adds extra text
-                if 1 <= score <= 10:
-                    impact_score = score
-                    print(f"  Article ID {article['id']} rated as: {impact_score}")
+                # Extract first integer (1-10) from response using regex
+                # This handles multi-line responses and text around the number
+                match = re.search(r'\b([1-9]|10)\b', rating_response.strip())
+                if match:
+                    score = int(match.group(1))
+                    if 1 <= score <= 10:
+                        impact_score = score
+                        print(f"  Article ID {article['id']} rated as: {impact_score}")
+                    else:
+                        print(f"  Warning: Rating response '{rating_response}' for article {article['id']} is out of range (1-10).")
                 else:
-                    print(f"  Warning: Rating response '{rating_response}' for article {article['id']} is out of range (1-10).")
-            except (ValueError, IndexError):
-                print(f"  Warning: Could not parse integer rating from response '{rating_response}' for article {article['id']}.")
+                    print(f"  Warning: Could not find valid rating (1-10) in response '{rating_response}' for article {article['id']}.")
+            except (ValueError, AttributeError) as e:
+                print(f"  Warning: Could not parse integer rating from response '{rating_response}' for article {article['id']}: {e}")
         else:
             print(f"  Warning: No rating response received for article {article['id']}.")
 

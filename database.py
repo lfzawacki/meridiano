@@ -4,7 +4,8 @@ This replaces the SQLite-based database.py with modern SQLModel operations.
 """
 
 import json
-from datetime import datetime, timedelta
+import logging
+from datetime import datetime, timedelta, date
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.exc import IntegrityError
@@ -13,6 +14,8 @@ from sqlalchemy import text
 
 import config_base as config
 from models import Article, Brief, get_session
+
+logger = logging.getLogger(__name__)
 
 ARTICLES_PER_PAGE_DEFAULT = 25
 
@@ -113,17 +116,17 @@ def _brief_to_dict(brief: Brief) -> Dict[str, Any]:
     )
 
 def _build_article_filters(
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
     feed_profile: Optional[str] = None,
 ):
     """Helper for building filter conditions for articles."""
     filters = []
 
     if start_date:
-        filters.append(func.date(Article.published_date) >= start_date)
+        filters.append(func.date(Article.published_date) >= func.date(start_date))
     if end_date:
-        filters.append(func.date(Article.published_date) <= end_date)
+        filters.append(func.date(Article.published_date) <= func.date(end_date))
     if feed_profile:
         filters.append(Article.feed_profile == feed_profile)
 
@@ -135,8 +138,8 @@ def get_all_articles(
     per_page: int = ARTICLES_PER_PAGE_DEFAULT,
     sort_by: str = "published_date",
     direction: str = "desc",
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
     feed_profile: Optional[str] = None,
     search_term: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
@@ -198,8 +201,8 @@ def get_all_articles(
 
 
 def get_total_article_count(
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
     feed_profile: Optional[str] = None,
     search_term: Optional[str] = None,
 ) -> int:
@@ -257,12 +260,13 @@ def add_article(
                     # Sync the sequence to the current max(id) so nextval() will produce a fresh value.
                     session.exec(
                         text(
-                            "SELECT setval(pg_get_serial_sequence('articles','id'), COALESCE((SELECT MAX(id) FROM articles), 0))"
+                            "SELECT setval(pg_get_serial_sequence('articles','id'), COALESCE((SELECT MAX(id) FROM articles), 1))"
                         )
                     )
-                except Exception:
-                    # If sequence sync fails, proceed and let the DB raise a meaningful error if any.
-                    pass
+                except Exception as e:
+                    # Log warning but continue - this is usually non-critical for new inserts
+                    logger.warning(f"PostgreSQL sequence sync warning (non-critical): {e}")
+                    # Continue - this is usually fine for new inserts
 
             article = Article(
                 url=url,
@@ -357,6 +361,18 @@ def save_brief(
             feed_profile=feed_profile,
             generated_at=datetime.now(),
         )
+
+        # Guarantee unique and sequential id
+        if "postgresql" in config.DATABASE_URL.lower():
+            try:
+                session.exec(
+                    text(
+                        "SELECT setval(pg_get_serial_sequence('briefs','id'), COALESCE((SELECT MAX(id) FROM briefs), 1))"
+                    )
+                )
+            except Exception:
+                pass
+
         session.add(brief)
         session.commit()
         session.refresh(brief)  # Get the ID

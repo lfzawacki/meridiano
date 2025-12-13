@@ -385,7 +385,8 @@ def generate_brief(feed_profile, effective_config):  # Added feed_profile param
         )
 
         # *** Call LLM with the formatted prompt ***
-        cluster_analysis = call_deepseek_chat(analysis_prompt, model=chat_model)  # System prompt could also be configurable
+        # System prompt could also be configurable
+        cluster_analysis = call_deepseek_chat(analysis_prompt, model=chat_model)
 
         if cluster_analysis:
             # (Consider adding more robust filtering of non-analysis responses)
@@ -535,7 +536,7 @@ def main():
     if args.model:
         # Fix ollama format if needed (ollama:model -> ollama/model)
         if args.model.startswith("ollama:") and "/" not in args.model:
-             args.model = args.model.replace("ollama:", "ollama/", 1)
+            args.model = args.model.replace("ollama:", "ollama/", 1)
 
         effective_config.DEEPSEEK_CHAT_MODEL = args.model
         print(f"Overriding chat model to: {args.model}")

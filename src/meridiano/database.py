@@ -32,9 +32,7 @@ def init_db():
     model_init_db()
 
 
-def get_unrated_articles(
-    feed_profile: str, limit: int = 50
-) -> List[Dict[str, Any]]:
+def get_unrated_articles(feed_profile: str, limit: int = 50) -> List[Dict[str, Any]]:
     """Gets processed articles that haven't been rated yet."""
     with get_session() as session:
         statement = (
@@ -115,6 +113,7 @@ def _brief_to_dict(brief: Brief) -> Dict[str, Any]:
         }
     )
 
+
 def _build_article_filters(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
@@ -162,15 +161,11 @@ def get_all_articles(
                 # PostgreSQL full-text search
                 search_vector = func.to_tsvector(
                     "english",
-                    func.coalesce(Article.title, "")
-                    + " "
-                    + func.coalesce(Article.raw_content, ""),
+                    func.coalesce(Article.title, "") + " " + func.coalesce(Article.raw_content, ""),
                 )
                 # Use SQLAlchemy's match with a plain string and specify the Postgres
                 # text search configuration to avoid nesting plainto_tsquery calls.
-                statement = statement.where(
-                    search_vector.match(search_term, postgresql_regconfig='english')
-                )
+                statement = statement.where(search_vector.match(search_term, postgresql_regconfig="english"))
             else:
                 # Fallback to LIKE search for SQLite
                 search_filter = or_(
@@ -222,15 +217,11 @@ def get_total_article_count(
                 # PostgreSQL full-text search
                 search_vector = func.to_tsvector(
                     "english",
-                    func.coalesce(Article.title, "")
-                    + " "
-                    + func.coalesce(Article.raw_content, ""),
+                    func.coalesce(Article.title, "") + " " + func.coalesce(Article.raw_content, ""),
                 )
                 # Use SQLAlchemy's match with a plain string and specify the Postgres
                 # text search configuration to avoid nesting plainto_tsquery calls.
-                statement = statement.where(
-                    search_vector.match(search_term, postgresql_regconfig='english')
-                )
+                statement = statement.where(search_vector.match(search_term, postgresql_regconfig="english"))
             else:
                 # Fallback to LIKE search
                 search_filter = or_(
@@ -260,7 +251,9 @@ def add_article(
                     # Sync the sequence to the current max(id) so nextval() will produce a fresh value.
                     session.exec(
                         text(
-                            "SELECT setval(pg_get_serial_sequence('articles','id'), COALESCE((SELECT MAX(id) FROM articles), 1))"
+                            "SELECT setval("
+                            "pg_get_serial_sequence('articles','id'), "
+                            "COALESCE((SELECT MAX(id) FROM articles), 1))"
                         )
                     )
                 except Exception as e:
@@ -288,9 +281,7 @@ def add_article(
             return None
 
 
-def get_unprocessed_articles(
-    feed_profile: str, limit: int = 50
-) -> List[Dict[str, Any]]:
+def get_unprocessed_articles(feed_profile: str, limit: int = 50) -> List[Dict[str, Any]]:
     """Gets articles that haven't been processed yet."""
     with get_session() as session:
         statement = (
@@ -311,9 +302,7 @@ def get_unprocessed_articles(
         return [_article_to_dict(article) for article in articles]
 
 
-def update_article_processing(
-    article_id: int, processed_content: str, embedding: Optional[List[float]]
-) -> None:
+def update_article_processing(article_id: int, processed_content: str, embedding: Optional[List[float]]) -> None:
     """Updates an article with its summary, embedding, and processed timestamp."""
     with get_session() as session:
         statement = select(Article).where(Article.id == article_id)
@@ -326,9 +315,7 @@ def update_article_processing(
             session.commit()
 
 
-def get_articles_for_briefing(
-    lookback_hours: int, feed_profile: str
-) -> List[Dict[str, Any]]:
+def get_articles_for_briefing(lookback_hours: int, feed_profile: str) -> List[Dict[str, Any]]:
     """Gets recently processed articles for a specific feed profile."""
     cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
 
@@ -349,9 +336,7 @@ def get_articles_for_briefing(
         return [_article_to_dict(article) for article in articles]
 
 
-def save_brief(
-    brief_markdown: str, contributing_article_ids: List[int], feed_profile: str
-) -> int:
+def save_brief(brief_markdown: str, contributing_article_ids: List[int], feed_profile: str) -> int:
     """Saves the generated brief including its feed profile."""
     with get_session() as session:
         ids_json = json.dumps(contributing_article_ids)
@@ -367,7 +352,9 @@ def save_brief(
             try:
                 session.exec(
                     text(
-                        "SELECT setval(pg_get_serial_sequence('briefs','id'), COALESCE((SELECT MAX(id) FROM briefs), 1))"
+                        "SELECT setval("
+                        "pg_get_serial_sequence('briefs','id'), "
+                        "COALESCE((SELECT MAX(id) FROM briefs), 1))"
                     )
                 )
             except Exception:
@@ -411,18 +398,10 @@ def get_distinct_feed_profiles(table: str = "articles") -> List[str]:
 
     with get_session() as session:
         if table == "articles":
-            statement = (
-                select(Article.feed_profile)
-                .distinct()
-                .order_by(Article.feed_profile)
-            )
+            statement = select(Article.feed_profile).distinct().order_by(Article.feed_profile)
             result = session.exec(statement).all()
         else:  # table == 'briefs'
-            statement = (
-                select(Brief.feed_profile)
-                .distinct()
-                .order_by(Brief.feed_profile)
-            )
+            statement = select(Brief.feed_profile).distinct().order_by(Brief.feed_profile)
             result = session.exec(statement).all()
 
         return list(result)

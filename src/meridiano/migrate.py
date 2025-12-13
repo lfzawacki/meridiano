@@ -46,9 +46,7 @@ def migrate_from_sqlite():
                 # Check if article already exists
                 existing = session.get(Article, row["id"])
                 if existing:
-                    print(
-                        f"[SKIP] Article already exists (ID {row['id']}): {row['title']}"
-                    )
+                    print(f"[SKIP] Article already exists (ID {row['id']}): {row['title']}")
                     articles_skipped += 1
                     continue
 
@@ -57,23 +55,13 @@ def migrate_from_sqlite():
                         id=row["id"],  # Preserve original ID
                         url=row["url"],
                         title=row["title"],
-                        published_date=datetime.fromisoformat(
-                            row["published_date"]
-                        )
-                        if row["published_date"]
-                        else None,
+                        published_date=datetime.fromisoformat(row["published_date"]) if row["published_date"] else None,
                         feed_source=row["feed_source"],
-                        fetched_at=datetime.fromisoformat(row["fetched_at"])
-                        if row["fetched_at"]
-                        else datetime.now(),
+                        fetched_at=datetime.fromisoformat(row["fetched_at"]) if row["fetched_at"] else datetime.now(),
                         raw_content=row["raw_content"],
                         processed_content=row["processed_content"],
                         embedding=row["embedding"],
-                        processed_at=datetime.fromisoformat(
-                            row["processed_at"]
-                        )
-                        if row["processed_at"]
-                        else None,
+                        processed_at=datetime.fromisoformat(row["processed_at"]) if row["processed_at"] else None,
                         cluster_id=row["cluster_id"],
                         impact_score=row["impact_score"],
                         image_url=row.get("image_url"),
@@ -83,18 +71,14 @@ def migrate_from_sqlite():
                     articles_migrated += 1
 
                     if articles_migrated % 100 == 0:
-                        print(
-                            f"   [INFO] Migrated {articles_migrated} articles..."
-                        )
+                        print(f"   [INFO] Migrated {articles_migrated} articles...")
 
                 except Exception as e:
                     print(f"[ERROR] Error migrating article {row['id']}: {e}")
 
             session.commit()
 
-        print(
-            f"[DONE] Articles migration completed: {articles_migrated} migrated, {articles_skipped} skipped"
-        )
+        print(f"[DONE] Articles migration completed: {articles_migrated} migrated, {articles_skipped} skipped")
 
         # Migrate Briefs
         print("\n[INFO] Migrating briefs...")
@@ -115,15 +99,11 @@ def migrate_from_sqlite():
                 try:
                     brief = Brief(
                         id=row["id"],  # Preserve original ID
-                        generated_at=datetime.fromisoformat(
-                            row["generated_at"]
-                        )
+                        generated_at=datetime.fromisoformat(row["generated_at"])
                         if row["generated_at"]
                         else datetime.now(),
                         brief_markdown=row["brief_markdown"],
-                        contributing_article_ids=row[
-                            "contributing_article_ids"
-                        ],
+                        contributing_article_ids=row["contributing_article_ids"],
                         feed_profile=row.get("feed_profile", "default"),
                     )
                     session.add(brief)
@@ -134,17 +114,11 @@ def migrate_from_sqlite():
 
             session.commit()
 
-        print(
-            f"[DONE] Briefs migration completed: {briefs_migrated} migrated, {briefs_skipped} skipped"
-        )
+        print(f"[DONE] Briefs migration completed: {briefs_migrated} migrated, {briefs_skipped} skipped")
 
         print("\n[SUCCESS] Migration completed successfully!")
-        print(
-            f"   [INFO] Articles: {articles_migrated} migrated, {articles_skipped} skipped"
-        )
-        print(
-            f"   [INFO] Briefs: {briefs_migrated} migrated, {briefs_skipped} skipped"
-        )
+        print(f"   [INFO] Articles: {articles_migrated} migrated, {articles_skipped} skipped")
+        print(f"   [INFO] Briefs: {briefs_migrated} migrated, {briefs_skipped} skipped")
 
         return True
 
@@ -182,12 +156,8 @@ def verify_migration():
     sqlite_conn = sqlite3.connect(sqlite_db_path)
 
     # Count SQLite records
-    sqlite_articles = sqlite_conn.execute(
-        "SELECT COUNT(*) FROM articles"
-    ).fetchone()[0]
-    sqlite_briefs = sqlite_conn.execute(
-        "SELECT COUNT(*) FROM briefs"
-    ).fetchone()[0]
+    sqlite_articles = sqlite_conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
+    sqlite_briefs = sqlite_conn.execute("SELECT COUNT(*) FROM briefs").fetchone()[0]
     sqlite_conn.close()
 
     # Count new database records
@@ -226,6 +196,4 @@ if __name__ == "__main__":
     elif command == "setup_fts":
         setup_postgresql_fts()
     else:
-        print(
-            "[ERROR] Unknown command. Use 'migrate', 'verify', or 'setup_fts'"
-        )
+        print("[ERROR] Unknown command. Use 'migrate', 'verify', or 'setup_fts'")

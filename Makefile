@@ -22,6 +22,6 @@ migrate:
 run:
 	# Get user arguments after 'run' target
 	$(eval ARGS=$(filter-out $@,$(MAKECMDGOALS)))
-	$(PYTHON_COMMAND) run_briefing.py $(ARGS)
+	$(PYTHON_COMMAND) /app/src/meridiano/run_briefing.py $(ARGS)
 
 .PHONY: up down logs ps build bash migrate run app

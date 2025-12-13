@@ -7,7 +7,25 @@ authors = [
     { name = "Rafael Dias", email = "rafaelagd@gmail.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "feedparser>=6.0.12",
+    "flask>=3.1.2",
+    "gunicorn>=23.0.0",
+    "lxml>=6.0.2",
+    "lxml-html-clean>=0.4.3",
+    "markdown>=3.10",
+    "markupsafe>=3.0.3",
+    "numpy>=2.3.5",
+    "openai>=2.11.0",
+    "psycopg2-binary>=2.9.11",
+    "python-dotenv>=1.2.1",
+    "requests>=2.32.5",
+    "schedule>=1.2.2",
+    "scikit-learn>=1.8.0",
+    "sqlmodel>=0.0.27",
+    "trafilatura>=2.0.0",
+]
 
 [project.scripts]
 meridiano = "meridiano:main"

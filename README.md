@@ -168,6 +168,55 @@ Use the command line to run different stages for specific feed profiles.
     gunicorn --bind 0.0.0.0:5000 app:app
     ```
 
+## Running on Docker
+
+Alternatively to the steps above, you can run Meridiano using Docker.
+There is a ./docker directory with a `Dockerfile` and `compose.yml` file to help you get started.
+We also provide a sample `Makefile` to simplify common tasks.
+
+**Build the Docker image:**
+
+```bash
+make build
+```
+
+**Run the application using Docker Compose:**
+
+To run the web application and have it accessible on port 5000 while also running the postgres database, use:
+
+```bash
+make up
+```
+
+After running this command, you can access the web interface at `http://localhost:5000`.
+When you do this for the first time, the database and tables will not yet exist, so you should run the briefing process
+once to initialize everything:
+
+```bash
+make run
+```
+
+You can kill the command line application with `CTRL+C` after a few moments, as the database will now be initialized.
+You should now be able to refresh the web interface and see it working.
+
+If you need to pass arguments to the `run_briefing.py` script, you can do so by appending them after `make run`, like this:
+
+```bash
+make run ARGS="--feed tech --all"
+```
+
+**Scheduling with docker:**
+
+To schedule the briefing process to run daily using cron within the Docker environment, you can set up a cron job on
+your host machine that executes the Docker command to run the briefing process. You can still use the Makefile helper
+command for this. Here is an example cron job that runs the briefing process daily at 7 AM:
+
+```cron
+0 7 * * * cd /path/to/meridiano && make run ARGS="--feed default --all"  >> /path/to/meridiano/meridiano.log 2>&1
+```
+
+**Note:** Make sure to replace `/path/to/meridiano` with the actual path to your Meridiano project directory.
+
 ## Contributing
 
 1. Fork the repository on GitHub.

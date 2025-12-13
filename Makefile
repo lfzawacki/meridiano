@@ -24,4 +24,13 @@ run:
 	$(eval ARGS=$(filter-out $@,$(MAKECMDGOALS)))
 	$(PYTHON_COMMAND) /app/src/meridiano/run_briefing.py $(ARGS)
 
+lint:
+	uv run ruff check . 
+
+format:
+	uv run ruff check . --fix
+
+test: format
+	uv run pytest --cov=src/ tests/
+
 .PHONY: up down logs ps build bash migrate run app

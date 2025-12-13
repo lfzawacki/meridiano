@@ -35,10 +35,41 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [dependency-groups]
-dev = ["coverage>=7.13.0", "pytest>=9.0.2", "pytest-cov>=7.0.0"]
+dev = ["coverage>=7.13.0", "pytest>=9.0.2", "pytest-cov>=7.0.0", "ruff>=0.14.9"]
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --strict-markers --tb=short"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow running tests",
+]
 filterwarnings = [
     "ignore::DeprecationWarning:litellm.*",
     "ignore::pydantic.warnings.PydanticDeprecatedSince20",
 ]
+
+[tool.coverage.report]
+exclude_lines = ["if __name__ == .__main__.:", "def test_", "ABC"]
+omit = ["*.venv/*"]
+
+[tool.ruff]
+exclude = [
+    "*/migrations/*",
+    "*/settings.py",
+    "*/wsgi.py",
+    "*/asgi.py",
+    "*/mlflwo/*",
+    "*/__pycache__/*",
+    "data/*",
+]
+line-length = 120
+
+[tool.ruff.lint]
+preview = true
+select = ['I', 'F', 'E', 'W', 'PT']
+exclude = ['.venv']

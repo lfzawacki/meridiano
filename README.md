@@ -227,14 +227,7 @@ command for this. Here is an example cron job that runs the briefing process dai
 
 ## Contributing
 
-1. Fork the repository on GitHub.
-2. Create a new branch for your feature or bug fix (git checkout -b feature/your-feature-name).
-3. Make your changes, adhering to the existing code style where possible.
-4. (Optional but Recommended) Add tests for your changes if applicable.
-5. Ensure your changes don't break existing functionality.
-6. Commit your changes (git commit -am 'Add some feature').
-7. Push to your branch (git push origin feature/your-feature-name).
-8. Create a Pull Request on GitHub, describing your changes clearly.
+Read the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines on how to contribute to this project.
 
 ## Credits
 

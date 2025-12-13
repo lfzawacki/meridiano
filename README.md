@@ -135,6 +135,8 @@ Use the command line to run different stages for specific feed profiles.
   * `--rate-articles`: Run only the impact rating stage (per profile).
   * `--generate-brief`: Run only the brief generation stage (per profile).
   * `--all`: Run all stages sequentially for the specified profile.
+  * `-m` or `--model`: Override the chat model (e.g., `ollama:qwen3:30b`).
+  * `-n` or `--limit`: Limit the number of articles to process (e.g., `10`).
   * *(No stage argument)*: Defaults to running all stages (`--all`).
 
 * **Examples:**
@@ -152,6 +154,9 @@ Use the command line to run different stages for specific feed profiles.
 
     # Run all stages for the 'tech' profile
     python run_briefing.py --feed tech --all
+
+    # Run with a specific local model and limit to 10 articles
+    python run_briefing.py --feed tech --all -m ollama:qwen3:30b -n 10
     ```
 
 * **Scheduling:** For automatic daily runs, use `cron` (Linux/macOS) or Task Scheduler (Windows) to execute the desired `run_briefing.py` command(s) daily. Remember to use the full path to the Python executable within your virtual environment. Example cron job (runs all stages for 'default' profile at 7 AM):
@@ -181,6 +186,17 @@ Use the command line to run different stages for specific feed profiles.
 Alternatively to the steps above, you can run Meridiano using Docker.
 There is a ./docker directory with a `Dockerfile` and `compose.yml` file to help you get started.
 We also provide a sample `Makefile` to simplify common tasks.
+
+**Available Make commands:**
+
+* `make build`: Build the Docker image.
+* `make up`: Start the web application and database.
+* `make run`: Run the briefing process in Docker.
+* `make check-ollama`: Check connectivity to a local Ollama instance.
+* `make bare-run`: Run the briefing process locally (without Docker) using `uv`.
+* `make lint`: Run code linting.
+* `make format`: Run code formatting.
+* `make test`: Run tests.
 
 **Build the Docker image:**
 

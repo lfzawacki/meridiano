@@ -13,19 +13,12 @@ import litellm
 import numpy as np
 from dotenv import load_dotenv
 from sklearn.cluster import KMeans
-
-from .utils import fetch_article_content_and_og_image
-
-try:
-    from . import config_base as config  # Load base config first
-except ImportError:
-    print("ERROR: config_base.py not found. Please ensure it exists.")
-    exit(1)
-
 from sqlmodel import select
 
-from . import database
-from .models import Article, get_session
+from meridiano import config_base as config  # Load base config first
+from meridiano import database
+from meridiano.models import Article, get_session
+from meridiano.utils import fetch_article_content_and_og_image
 
 # --- Setup ---
 load_dotenv()
@@ -40,20 +33,35 @@ embedding_client = {
 
 
 def call_deepseek_chat(prompt, model=config.LLM_CHAT_MODEL, system_prompt=None):
-    """Calls the Deepseek Chat API."""
+    """Calls the LLM API (Deepseek, Ollama, etc)."""
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
 
+    completion_kwargs = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": 2048,
+        "temperature": 0.7,
+    }
+
+    # Only pass api_base if it's set and we are NOT using Ollama (which has its own default/env var)
+    # or if we want to support a custom OLLAMA_API_BASE env var handled by litellm.
+    # If the model is 'ollama/...', litellm looks for OLLAMA_API_BASE or defaults to localhost:11434.
+    # We don't want to pass the DeepSeek/OpenAI API base URL to Ollama.
+    if not str(model).startswith("ollama"):
+        if client["api_base"]:
+            completion_kwargs["api_base"] = client["api_base"]
+    else:
+        # Explicitly pass OLLAMA_API_BASE if set, to ensure litellm uses it
+        ollama_base = os.getenv("OLLAMA_API_BASE")
+        if ollama_base:
+            completion_kwargs["api_base"] = ollama_base
+            # print(f"DEBUG: Using Ollama API Base: {ollama_base}")
+
     try:
-        response = litellm.completion(
-            api_base=client["api_base"],
-            model=model,
-            messages=messages,
-            max_tokens=2048,  # Adjust as needed
-            temperature=0.7,  # Adjust for desired creativity/factuality
-        )
+        response = litellm.completion(**completion_kwargs)
         return response["choices"][0]["message"]["content"].strip()
     except Exception as e:
         print(f"Error calling Deepseek Chat API: {e}")
@@ -173,19 +181,19 @@ def scrape_articles(feed_profile, rss_feeds):  # Added params
     print(f"--- Scraping Finished [{feed_profile}]. Added {new_articles_count} new articles. ---")
 
 
-def process_articles(feed_profile, effective_config):
+def process_articles(feed_profile, effective_config, limit=1000):
     """Processes unprocessed articles: summarizes and generates embeddings."""
     print("\n--- Starting Article Processing ---")
     chat_model = getattr(effective_config, "DEEPSEEK_CHAT_MODEL", "deepseek-chat")  # Get model from effective config
     summary_prompt_template = getattr(effective_config, "PROMPT_ARTICLE_SUMMARY", config.PROMPT_ARTICLE_SUMMARY)
 
-    unprocessed = database.get_unprocessed_articles(feed_profile, 1000)
+    unprocessed = database.get_unprocessed_articles(feed_profile, limit)
     processed_count = 0
     if not unprocessed:
         print("No new articles to process.")
         return
 
-    print(f"Found {len(unprocessed)} articles to process.")
+    print(f"Found {len(unprocessed)} articles to process (Limit: {limit}).")
     for article in unprocessed:
         print(f"Processing article ID: {article['id']} - {article['url'][:50]}...")
 
@@ -219,7 +227,7 @@ def process_articles(feed_profile, effective_config):
     print(f"--- Processing Finished. Processed {processed_count} articles. ---")
 
 
-def rate_articles(feed_profile, effective_config):
+def rate_articles(feed_profile, effective_config, limit=1000):
     """Rates the impact of processed articles using an LLM."""
     print("\n--- Starting Article Impact Rating ---")
     if not client:
@@ -229,13 +237,13 @@ def rate_articles(feed_profile, effective_config):
     chat_model = getattr(effective_config, "DEEPSEEK_CHAT_MODEL", "deepseek-chat")
     rating_prompt_template = getattr(effective_config, "PROMPT_IMPACT_RATING", config.PROMPT_IMPACT_RATING)
 
-    unrated = database.get_unrated_articles(feed_profile, 1000)
+    unrated = database.get_unrated_articles(feed_profile, limit)
     rated_count = 0
     if not unrated:
         print("No new articles to rate.")
         return
 
-    print(f"Found {len(unrated)} processed articles to rate.")
+    print(f"Found {len(unrated)} processed articles to rate (Limit: {limit}).")
     for article in unrated:
         print(f"Rating article ID: {article['id']}: {article['title']}...")
         summary = article["processed_content"]
@@ -294,6 +302,8 @@ def rate_articles(feed_profile, effective_config):
 def generate_brief(feed_profile, effective_config):  # Added feed_profile param
     """Generates the briefing for a specific feed profile."""
     print(f"\n--- Starting Brief Generation [{feed_profile}] ---")
+    chat_model = getattr(effective_config, "DEEPSEEK_CHAT_MODEL", "deepseek-chat")  # Get model from effective config
+
     # Get articles *for this specific profile*
     articles = database.get_articles_for_briefing(config.BRIEFING_ARTICLE_LOOKBACK_HOURS, feed_profile)
 
@@ -375,7 +385,7 @@ def generate_brief(feed_profile, effective_config):  # Added feed_profile param
         )
 
         # *** Call LLM with the formatted prompt ***
-        cluster_analysis = call_deepseek_chat(analysis_prompt)  # System prompt could also be configurable
+        cluster_analysis = call_deepseek_chat(analysis_prompt, model=chat_model)  # System prompt could also be configurable
 
         if cluster_analysis:
             # (Consider adding more robust filtering of non-analysis responses)
@@ -408,7 +418,7 @@ def generate_brief(feed_profile, effective_config):  # Added feed_profile param
     synthesis_prompt = brief_synthesis_prompt_template.format(
         cluster_analyses_text=cluster_analyses_text, feed_profile=feed_profile
     )
-    final_brief_md = call_deepseek_chat(synthesis_prompt)
+    final_brief_md = call_deepseek_chat(synthesis_prompt, model=chat_model)
 
     if final_brief_md:
         database.save_brief(final_brief_md, article_ids, feed_profile)
@@ -451,13 +461,24 @@ def main():
         help="Run only the brief generation (cluster, analyze, synthesize) stage.",
     )
     parser.add_argument(
-        "--all",
-        dest="run_all",
-        action="store_true",
+        '--all',
+        dest='run_all',
+        action='store_true',
         help=(
-            "Run all stages sequentially (scrape, process, generate).\n"
-            "This is the default behavior if no specific stage argument is given."
+            'Run all stages sequentially (scrape, process, generate).\n'
+            'This is the default behavior if no specific stage argument is given.'
         ),
+    )
+    parser.add_argument(
+        '-m', '--model',
+        type=str,
+        help='Override the LLM model (e.g., "ollama:qwen3:30b").'
+    )
+    parser.add_argument(
+        '-n', '--limit',
+        type=int,
+        default=1000,
+        help='Limit the number of articles to process/rate (default: 1000).'
     )
 
     args = parser.parse_args()
@@ -510,6 +531,15 @@ def main():
     if rss_feeds is not None:
         effective_config.RSS_FEEDS = rss_feeds
 
+    # Handle Model Override
+    if args.model:
+        # Fix ollama format if needed (ollama:model -> ollama/model)
+        if args.model.startswith("ollama:") and "/" not in args.model:
+             args.model = args.model.replace("ollama:", "ollama/", 1)
+
+        effective_config.DEEPSEEK_CHAT_MODEL = args.model
+        print(f"Overriding chat model to: {args.model}")
+
     # Default to running all if no specific stage OR --all is provided
     should_run_all = args.run_all or not (args.scrape or args.process or args.generate or args.rate)
 
@@ -525,8 +555,8 @@ def main():
             scrape_articles(feed_profile_name, current_rss_feeds)
         else:
             print("Skipping scrape stage: No RSS_FEEDS found for profile.")
-        process_articles(feed_profile_name, effective_config)
-        rate_articles(feed_profile_name, effective_config)
+        process_articles(feed_profile_name, effective_config, limit=args.limit)
+        rate_articles(feed_profile_name, effective_config, limit=args.limit)
         if current_rss_feeds:
             generate_brief(feed_profile_name, effective_config)
         else:
@@ -540,10 +570,10 @@ def main():
                 print(f"Cannot run scrape stage: No RSS_FEEDS found for profile '{feed_profile_name}'.")
         if args.process:
             print("\n>>> Running ONLY Process Articles stage <<<")
-            process_articles(feed_profile_name, effective_config)
+            process_articles(feed_profile_name, effective_config, limit=args.limit)
         if args.rate:
             print("\n>>> Running ONLY Rate Articles stage <<<")
-            rate_articles(feed_profile_name, effective_config)
+            rate_articles(feed_profile_name, effective_config, limit=args.limit)
         if args.generate:
             if current_rss_feeds:  # Check if feeds exist, as brief relies on articles from them
                 print(f"\n>>> Running ONLY Generate Brief stage [{feed_profile_name}] <<<")

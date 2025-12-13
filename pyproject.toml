@@ -3,9 +3,7 @@ name = "meridiano"
 version = "0.1.0"
 description = "Meridiano"
 readme = "README.md"
-authors = [
-    { name = "Rafael Dias", email = "rafaelagd@gmail.com" }
-]
+authors = [{ name = "Rafael Dias", email = "rafaelagd@gmail.com" }]
 requires-python = ">=3.13"
 dependencies = [
     "beautifulsoup4>=4.14.3",
@@ -29,6 +27,7 @@ dependencies = [
 
 [project.scripts]
 meridiano = "meridiano:main"
+meridiano-briefing = "meridiano.run_briefing:main"
 
 [build-system]
 requires = ["setuptools>=61"]

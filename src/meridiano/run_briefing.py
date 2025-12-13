@@ -447,21 +447,30 @@ if __name__ == "__main__":
 
     # --- Load Feed Specific Config ---
     feed_profile_name = args.feed
-    feed_module_name = f"feeds.{feed_profile_name}"
+    feed_config = None
+    # Try importing from meridiano.feeds first (when running as module)
     try:
-        feed_config = importlib.import_module(feed_module_name)
-        print(f"Loaded feed configuration: {feed_module_name}")
+        feed_module_name = f".feeds.{feed_profile_name}"
+        feed_config = importlib.import_module(feed_module_name, package="meridiano")
+    except ImportError:
+        # Fallback for when running differently or if package name differs
+        try:
+            feed_module_name = f"feeds.{feed_profile_name}"
+            feed_config = importlib.import_module(feed_module_name)
+        except ImportError:
+            print(f"ERROR: Could not import feed configuration for '{feed_profile_name}'.")
+            print(f"Please ensure 'src/meridiano/feeds/{feed_profile_name}.py' exists.")
+            rss_feeds = None
+
+    if feed_config:
+        print(f"Loaded feed configuration: {feed_config.__name__}")
         # Optionally merge settings if feed configs override base config values
         # For now, we just need RSS_FEEDS from it
         rss_feeds = getattr(feed_config, 'RSS_FEEDS', [])
         if not rss_feeds:
-             print(f"Warning: RSS_FEEDS list not found or empty in {feed_module_name}.py")
-    except ImportError:
-        print(f"ERROR: Could not import feed configuration '{feed_module_name}.py'.")
-        print("Please ensure the file exists and contains an RSS_FEEDS list.")
-        # Decide how to handle: exit or continue without scraping/generation?
-        # Let's allow processing/rating to run, but disable scrape/generate
-        rss_feeds = None # Indicate feed load failure
+             print("Warning: RSS_FEEDS list not found or empty in feed config.")
+    else:
+        rss_feeds = None
 
     # --- Create Effective Config ---
     # Start with base config vars

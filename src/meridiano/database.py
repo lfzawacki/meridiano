@@ -14,6 +14,7 @@ from sqlmodel import and_, asc, desc, func, or_, select
 
 from . import config_base as config
 from .models import Article, Brief, get_session
+from .models import init_db as model_init_db
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,6 @@ def get_db_connection():
 
 def init_db():
     """Initialize the database - create all tables"""
-    from models import init_db as model_init_db
 
     model_init_db()
 

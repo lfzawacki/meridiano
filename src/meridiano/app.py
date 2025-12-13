@@ -1,18 +1,18 @@
 # simple-meridian/app.py
 
-from flask import Flask, render_template, request, abort, flash, redirect, url_for
-from markupsafe import Markup
-import markdown
-from datetime import datetime, timedelta, date
-import math
 import json
+import math
 import os
+from datetime import date, datetime, timedelta
 
-import config_base as config # Use base config for app settings
-import database # Import our database functions
+import markdown
+from flask import Flask, abort, flash, redirect, render_template, request, url_for
+from markupsafe import Markup
 from sqlmodel import select
 
-from utils import scrape_single_article_details, format_datetime
+from . import config_base as config  # Use base config for app settings
+from . import database  # Import our database functions
+from .utils import format_datetime, scrape_single_article_details
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "a_default_secret_key_for_development_only")

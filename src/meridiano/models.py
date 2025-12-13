@@ -7,7 +7,7 @@ from typing import Optional
 
 from sqlmodel import Field, Session, SQLModel, create_engine, text
 
-import config_base as config
+from . import config_base as config
 
 
 class Article(SQLModel, table=True):

@@ -1,0 +1,17 @@
+[project]
+name = "meridiano"
+version = "0.1.0"
+description = "Meridiano"
+readme = "README.md"
+authors = [
+    { name = "Rafael Dias", email = "rafaelagd@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+meridiano = "meridiano:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

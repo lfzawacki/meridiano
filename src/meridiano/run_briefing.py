@@ -1,31 +1,31 @@
 # simple-meridian/run_briefing.py
 
-import os
-import importlib
-import feedparser
-from datetime import datetime
-import json
-import time
-import re
-import numpy as np
-from sklearn.cluster import KMeans
-from dotenv import load_dotenv
-import openai
 import argparse
+import importlib
+import json
+import os
+import re
+import time
+from datetime import datetime
 
-from urllib.parse import urljoin
+import feedparser
+import numpy as np
+import openai
+from dotenv import load_dotenv
+from sklearn.cluster import KMeans
 
-from utils import fetch_article_content_and_og_image
+from .utils import fetch_article_content_and_og_image
 
 try:
-    import config_base as config # Load base config first
+    from . import config_base as config  # Load base config first
 except ImportError:
     print("ERROR: config_base.py not found. Please ensure it exists.")
     exit(1)
 
-import database
-from models import Article, get_session
 from sqlmodel import select
+
+from . import database
+from .models import Article, get_session
 
 # --- Setup ---
 load_dotenv()
@@ -79,10 +79,10 @@ def get_deepseek_embedding(text, model=config.EMBEDDING_MODEL):
               if embedding and len(embedding) > 0:
                   return embedding
               else:
-                  print(f"Warning: Empty or invalid embedding returned for text.")
+                  print("Warning: Empty or invalid embedding returned for text.")
                   return None
          else:
-              print(f"Warning: No embedding data in API response.")
+              print("Warning: No embedding data in API response.")
               return None
     except Exception as e:
          print(f"Error calling Embedding API: {e}")
@@ -147,7 +147,7 @@ def scrape_articles(feed_profile, rss_feeds): # Added params
             # --- End RSS Image Check ---
 
             # --- 2. Fetch Article Content & OG Image ---
-            print(f"  Fetching article content and OG image...")
+            print("  Fetching article content and OG image...")
             fetch_result = fetch_article_content_and_og_image(url)
             raw_content = fetch_result['content']
             og_image_url = fetch_result['og_image']
@@ -458,7 +458,7 @@ if __name__ == "__main__":
              print(f"Warning: RSS_FEEDS list not found or empty in {feed_module_name}.py")
     except ImportError:
         print(f"ERROR: Could not import feed configuration '{feed_module_name}.py'.")
-        print(f"Please ensure the file exists and contains an RSS_FEEDS list.")
+        print("Please ensure the file exists and contains an RSS_FEEDS list.")
         # Decide how to handle: exit or continue without scraping/generation?
         # Let's allow processing/rating to run, but disable scrape/generate
         rss_feeds = None # Indicate feed load failure

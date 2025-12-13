@@ -9,8 +9,9 @@ from pathlib import Path
 
 from sqlmodel import select
 
-import config_base as config
-from models import Article, Brief, create_db_and_tables, get_session
+from . import config_base as config
+from .models import Article, Brief, create_db_and_tables, get_session
+
 
 def migrate_from_sqlite():
     """
@@ -137,7 +138,7 @@ def migrate_from_sqlite():
             f"[DONE] Briefs migration completed: {briefs_migrated} migrated, {briefs_skipped} skipped"
         )
 
-        print(f"\n[SUCCESS] Migration completed successfully!")
+        print("\n[SUCCESS] Migration completed successfully!")
         print(
             f"   [INFO] Articles: {articles_migrated} migrated, {articles_skipped} skipped"
         )
@@ -194,7 +195,7 @@ def verify_migration():
         new_articles = len(session.exec(select(Article)).all())
         new_briefs = len(session.exec(select(Brief)).all())
 
-    print(f"[INFO] Record counts:")
+    print("[INFO] Record counts:")
     print(f"   Articles: SQLite={sqlite_articles}, New DB={new_articles}")
     print(f"   Briefs: SQLite={sqlite_briefs}, New DB={new_briefs}")
 

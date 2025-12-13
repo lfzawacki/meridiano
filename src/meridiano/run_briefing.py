@@ -401,7 +401,7 @@ def generate_brief(feed_profile, effective_config): # Added feed_profile param
         print(f"--- Brief Generation Failed [{feed_profile}]: Could not synthesize final brief. ---")
 
 # --- Main Execution ---
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(
         description="Meridian Briefing Runner: Scrapes, processes, and generates briefings.",
         formatter_class=argparse.RawTextHelpFormatter # Nicer help text formatting
@@ -528,3 +528,6 @@ if __name__ == "__main__":
             else: print(f"Cannot run generate stage: No RSS_FEEDS found for profile '{feed_profile_name}'.")
 
     print(f"\nRun Finished [{feed_profile_name}] - {datetime.now()}")
+
+if __name__ == "__main__":
+    main()

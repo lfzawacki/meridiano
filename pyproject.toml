@@ -32,3 +32,10 @@ meridiano-briefing = "meridiano.run_briefing:main"
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "coverage>=7.13.0",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+]

@@ -1,6 +1,11 @@
-# Load environment variables from .env file
-include .env
-export $(shell sed 's/=.*//' .env)
+# Load environment variables from .env file if it exists or use .env.example as fallback
+ifneq (,$(wildcard .env))
+    include .env
+    export $(shell sed 's/=.*//' .env)
+else
+    include .env.example
+    export $(shell sed 's/=.*//' .env.example)
+endif
 
 COMPOSE_COMMAND= docker compose --env-file .env -f docker/compose.yml
 PYTHON_COMMAND= docker run --rm --network host --env-file .env -e PYTHONPATH=/app/src -e DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT}/${POSTGRES_DB}" -e OLLAMA_API_BASE="http://localhost:11434" docker-web:latest .venv/bin/python

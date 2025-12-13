@@ -1,6 +1,7 @@
 # simple-meridian/config.py
 
 import os
+
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -59,9 +60,9 @@ BRIEFING_ARTICLE_LOOKBACK_HOURS = 24
 
 # --- Model Settings ---
 # Model for summarization and analysis (check Deepseek docs for latest models)
-DEEPSEEK_CHAT_MODEL = "deepseek-chat"
+LLM_CHAT_MODEL = os.getenv("LLM_CHAT_MODEL", "deepseek/deepseek-chat")
 # Model for embeddings
-EMBEDDING_MODEL = "intfloat/multilingual-e5-large-instruct"
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-large-instruct")
 
 # Approximate number of clusters to aim for. Fine-tune based on results.
 # Alternatively, use algorithms like DBSCAN that don't require specifying k.

@@ -9,8 +9,8 @@ import time
 from datetime import datetime
 
 import feedparser
+import litellm
 import numpy as np
-import openai
 from dotenv import load_dotenv
 from sklearn.cluster import KMeans
 
@@ -29,20 +29,16 @@ from .models import Article, get_session
 
 # --- Setup ---
 load_dotenv()
-API_KEY = os.getenv("DEEPSEEK_API_KEY")
-EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY")
 
-if not API_KEY:
-    raise ValueError("DEEPSEEK_API_KEY not found in .env file")
+client = {
+    "api_base": os.getenv("LLM_API_BASE_URL"),
+}
 
-if not EMBEDDING_API_KEY:
-    raise ValueError("EMBEDDING_API_KEY not found in .env file")
+embedding_client = {
+    "api_base": os.getenv("EMBEDDING_API_BASE_URL"),
+}
 
-# Use the correct client for Deepseek, not OpenAI
-client = openai.Client(api_key=API_KEY, base_url="https://api.deepseek.com/v1")
-embedding_client = openai.Client(api_key=EMBEDDING_API_KEY, base_url="https://api.together.xyz/v1")
-
-def call_deepseek_chat(prompt, model=config.DEEPSEEK_CHAT_MODEL, system_prompt=None):
+def call_deepseek_chat(prompt, model=config.LLM_CHAT_MODEL, system_prompt=None):
     """Calls the Deepseek Chat API."""
     messages = []
     if system_prompt:
@@ -50,13 +46,14 @@ def call_deepseek_chat(prompt, model=config.DEEPSEEK_CHAT_MODEL, system_prompt=N
     messages.append({"role": "user", "content": prompt})
 
     try:
-        response = client.chat.completions.create(
+        response = litellm.completion(
+            api_base=client["api_base"],
             model=model,
             messages=messages,
             max_tokens=2048, # Adjust as needed
             temperature=0.7, # Adjust for desired creativity/factuality
         )
-        return response.choices[0].message.content.strip()
+        return response["choices"][0]["message"]["content"].strip()
     except Exception as e:
         print(f"Error calling Deepseek Chat API: {e}")
         # Implement retry logic or better error handling here if needed
@@ -68,22 +65,17 @@ def get_deepseek_embedding(text, model=config.EMBEDDING_MODEL):
     print(f"INFO: Attempting to get embedding for text snippet: '{text[:50]}...'")
 
     try:
-         response = embedding_client.embeddings.create(
-             model=model, # Use the actual model name from Deepseek docs
-             input=[text] # API likely expects a list of strings
-         )
-         # Access the embedding vector based on the actual API response structure
-         if response.data and len(response.data) > 0:
-              embedding = response.data[0].embedding
-              # Validate embedding is not empty and has valid structure
-              if embedding and len(embedding) > 0:
-                  return embedding
-              else:
-                  print("Warning: Empty or invalid embedding returned for text.")
-                  return None
-         else:
-              print("Warning: No embedding data in API response.")
-              return None
+        response = litellm.embedding(
+            api_base=embedding_client["api_base"],
+            model=model,
+            input=[text],
+        )
+        # Access the embedding vector based on the actual API response structure
+        if response["data"] and len(response["data"]) > 0:
+            return response["data"][0]["embedding"]
+        else:
+            print("Warning: No embedding returned for text.")
+            return None
     except Exception as e:
          print(f"Error calling Embedding API: {e}")
          return None

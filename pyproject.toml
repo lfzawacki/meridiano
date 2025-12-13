@@ -10,6 +10,7 @@ dependencies = [
     "feedparser>=6.0.12",
     "flask>=3.1.2",
     "gunicorn>=23.0.0",
+    "litellm>=1.80.9",
     "lxml>=6.0.2",
     "lxml-html-clean>=0.4.3",
     "markdown>=3.10",
@@ -34,8 +35,10 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [dependency-groups]
-dev = [
-    "coverage>=7.13.0",
-    "pytest>=9.0.2",
-    "pytest-cov>=7.0.0",
+dev = ["coverage>=7.13.0", "pytest>=9.0.2", "pytest-cov>=7.0.0"]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning:litellm.*",
+    "ignore::pydantic.warnings.PydanticDeprecatedSince20",
 ]

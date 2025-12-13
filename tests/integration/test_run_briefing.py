@@ -36,26 +36,27 @@ def setup_integration():
     models.create_db_and_tables()
 
     # Mock clients in run_briefing
-    mock_client = MagicMock()
-    mock_embedding_client = MagicMock()
+    # We don't need to mock client/embedding_client objects anymore as they are just dicts now
+    # Instead we need to mock litellm functions
+    mock_completion = MagicMock()
+    mock_embedding = MagicMock()
     
-    # Patch the clients in run_briefing module
-    client_patcher = patch('meridiano.run_briefing.client', mock_client)
-    embedding_client_patcher = patch('meridiano.run_briefing.embedding_client', mock_embedding_client)
+    completion_patcher = patch('meridiano.run_briefing.litellm.completion', mock_completion)
+    embedding_patcher = patch('meridiano.run_briefing.litellm.embedding', mock_embedding)
     
-    client_patcher.start()
-    embedding_client_patcher.start()
+    completion_patcher.start()
+    embedding_patcher.start()
 
     yield {
-        'mock_client': mock_client,
-        'mock_embedding_client': mock_embedding_client,
+        'mock_completion': mock_completion,
+        'mock_embedding': mock_embedding,
         'test_dir': test_dir
     }
 
     # Teardown
     config_patcher.stop()
-    client_patcher.stop()
-    embedding_client_patcher.stop()
+    completion_patcher.stop()
+    embedding_patcher.stop()
     models.engine.dispose()
     models.engine = original_engine # Restore original engine
     shutil.rmtree(test_dir)
@@ -64,8 +65,8 @@ def setup_integration():
 @patch('meridiano.run_briefing.fetch_article_content_and_og_image')
 def test_full_workflow(mock_fetch, mock_parse, setup_integration):
     # Access mocks from fixture
-    mock_client = setup_integration['mock_client']
-    mock_embedding_client = setup_integration['mock_embedding_client']
+    mock_completion = setup_integration['mock_completion']
+    mock_embedding = setup_integration['mock_embedding']
 
     # --- Setup Mocks ---
     
@@ -100,25 +101,25 @@ def test_full_workflow(mock_fetch, mock_parse, setup_integration):
         user_content = messages[-1]['content'] if messages else ""
         
         if "Summarize" in user_content:
-            return MagicMock(choices=[MagicMock(message=MagicMock(content="This is a summary."))])
+            return {"choices": [{"message": {"content": "This is a summary."}}]}
         elif "Rate the impact" in user_content:
-            return MagicMock(choices=[MagicMock(message=MagicMock(content="8"))])
+            return {"choices": [{"message": {"content": "8"}}]}
         elif "core event or topic" in user_content: # Cluster analysis
-            return MagicMock(choices=[MagicMock(message=MagicMock(content="Cluster Analysis Result"))])
+            return {"choices": [{"message": {"content": "Cluster Analysis Result"}}]}
         elif "Presidential-style" in user_content: # Brief synthesis
-            return MagicMock(choices=[MagicMock(message=MagicMock(content="# Final Brief\n\n- Point 1"))])
-        return MagicMock(choices=[MagicMock(message=MagicMock(content="Generic Response"))])
+            return {"choices": [{"message": {"content": "# Final Brief\n\n- Point 1"}}]}
+        return {"choices": [{"message": {"content": "Generic Response"}}]}
 
-    mock_client.chat.completions.create.side_effect = chat_side_effect
+    mock_completion.side_effect = chat_side_effect
 
     # Mock Embeddings
     # Return slightly different embeddings to allow clustering
     def embedding_side_effect(*args, **kwargs):
         # Random-ish embedding
         import random
-        return MagicMock(data=[MagicMock(embedding=[random.random(), random.random(), random.random()])])
-        
-    mock_embedding_client.embeddings.create.side_effect = embedding_side_effect
+        return {"data": [{"embedding": [random.random(), random.random(), random.random()]}]}
+            
+    mock_embedding.side_effect = embedding_side_effect
 
     # --- Test Execution ---
     
@@ -136,7 +137,7 @@ def test_full_workflow(mock_fetch, mock_parse, setup_integration):
 
     # 2. Process
     class DummyConfig:
-        DEEPSEEK_CHAT_MODEL = 'test-model'
+        LLM_CHAT_MODEL = 'test-model'
         PROMPT_ARTICLE_SUMMARY = "Summarize: {article_content}"
         EMBEDDING_MODEL = 'test-embedding'
         

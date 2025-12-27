@@ -10,9 +10,9 @@ from flask import Flask, abort, flash, redirect, render_template, request, url_f
 from markupsafe import Markup
 from sqlmodel import select
 
-from . import config_base as config  # Use base config for app settings
-from . import database  # Import our database functions
-from .utils import format_datetime, scrape_single_article_details
+from meridiano import config_base as config  # Use base config for app settings
+from meridiano import database  # Import our database functions
+from meridiano.utils import format_datetime, scrape_single_article_details
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "a_default_secret_key_for_development_only")

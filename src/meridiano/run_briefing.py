@@ -31,6 +31,7 @@ embedding_client = {
     "api_base": os.getenv("EMBEDDING_API_BASE_URL"),
 }
 
+
 def call_deepseek_chat(prompt, model=config.LLM_CHAT_MODEL, system_prompt=None):
     """Calls the LLM API (Deepseek, Ollama, etc)."""
     messages = []
@@ -184,7 +185,7 @@ def scrape_articles(feed_profile, rss_feeds):  # Added params
 def process_articles(feed_profile, effective_config, limit=1000):
     """Processes unprocessed articles: summarizes and generates embeddings."""
     print("\n--- Starting Article Processing ---")
-    chat_model = getattr(effective_config, "LLM_CHAT_MODEL", "deepseek/deepseek-chat")  # Get model from effective config
+    chat_model = getattr(effective_config, "LLM_CHAT_MODEL", "deepseek/deepseek-chat")
     summary_prompt_template = getattr(effective_config, "PROMPT_ARTICLE_SUMMARY", config.PROMPT_ARTICLE_SUMMARY)
 
     unprocessed = database.get_unprocessed_articles(feed_profile, limit)
@@ -299,10 +300,10 @@ def rate_articles(feed_profile, effective_config, limit=1000):
     print(f"--- Rating Finished. Rated {rated_count} articles. ---")
 
 
-def generate_brief(feed_profile, effective_config):  # Added feed_profile param
+def generate_brief(feed_profile, effective_config):
     """Generates the briefing for a specific feed profile."""
     print(f"\n--- Starting Brief Generation [{feed_profile}] ---")
-    chat_model = getattr(effective_config, "LLM_CHAT_MODEL", "deepseek/deepseek-chat")  # Get model from effective config
+    chat_model = getattr(effective_config, "LLM_CHAT_MODEL", "deepseek/deepseek-chat")
 
     # Get articles *for this specific profile*
     articles = database.get_articles_for_briefing(config.BRIEFING_ARTICLE_LOOKBACK_HOURS, feed_profile)

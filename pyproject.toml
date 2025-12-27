@@ -72,4 +72,4 @@ line-length = 120
 [tool.ruff.lint]
 preview = true
 select = ['I', 'F', 'E', 'W', 'PT']
-exclude = ['.venv']
+exclude = ['.venv', 'src/meridiano/feeds/*']

@@ -31,12 +31,12 @@ embedding_client = {
     "api_base": os.getenv("EMBEDDING_API_BASE_URL"),
 }
 
-
 def call_deepseek_chat(prompt, model=config.LLM_CHAT_MODEL, system_prompt=None):
     """Calls the LLM API (Deepseek, Ollama, etc)."""
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
+
     messages.append({"role": "user", "content": prompt})
 
     completion_kwargs = {
@@ -184,7 +184,7 @@ def scrape_articles(feed_profile, rss_feeds):  # Added params
 def process_articles(feed_profile, effective_config, limit=1000):
     """Processes unprocessed articles: summarizes and generates embeddings."""
     print("\n--- Starting Article Processing ---")
-    chat_model = getattr(effective_config, "DEEPSEEK_CHAT_MODEL", "deepseek-chat")  # Get model from effective config
+    chat_model = getattr(effective_config, "LLM_CHAT_MODEL", "deepseek/deepseek-chat")  # Get model from effective config
     summary_prompt_template = getattr(effective_config, "PROMPT_ARTICLE_SUMMARY", config.PROMPT_ARTICLE_SUMMARY)
 
     unprocessed = database.get_unprocessed_articles(feed_profile, limit)
@@ -234,7 +234,7 @@ def rate_articles(feed_profile, effective_config, limit=1000):
         print("Skipping rating: Deepseek client not initialized.")
         return
 
-    chat_model = getattr(effective_config, "DEEPSEEK_CHAT_MODEL", "deepseek-chat")
+    chat_model = getattr(effective_config, "LLM_CHAT_MODEL", "deepseek/deepseek-chat")
     rating_prompt_template = getattr(effective_config, "PROMPT_IMPACT_RATING", config.PROMPT_IMPACT_RATING)
 
     unrated = database.get_unrated_articles(feed_profile, limit)
@@ -302,7 +302,7 @@ def rate_articles(feed_profile, effective_config, limit=1000):
 def generate_brief(feed_profile, effective_config):  # Added feed_profile param
     """Generates the briefing for a specific feed profile."""
     print(f"\n--- Starting Brief Generation [{feed_profile}] ---")
-    chat_model = getattr(effective_config, "DEEPSEEK_CHAT_MODEL", "deepseek-chat")  # Get model from effective config
+    chat_model = getattr(effective_config, "LLM_CHAT_MODEL", "deepseek/deepseek-chat")  # Get model from effective config
 
     # Get articles *for this specific profile*
     articles = database.get_articles_for_briefing(config.BRIEFING_ARTICLE_LOOKBACK_HOURS, feed_profile)
@@ -538,7 +538,7 @@ def main():
         if args.model.startswith("ollama:") and "/" not in args.model:
             args.model = args.model.replace("ollama:", "ollama/", 1)
 
-        effective_config.DEEPSEEK_CHAT_MODEL = args.model
+        effective_config.LLM_CHAT_MODEL = args.model
         print(f"Overriding chat model to: {args.model}")
 
     # Default to running all if no specific stage OR --all is provided

@@ -66,7 +66,7 @@ BRIEFING_ARTICLE_LOOKBACK_HOURS = 24
 # Model for summarization and analysis (check Deepseek docs for latest models)
 LLM_CHAT_MODEL = os.getenv("LLM_CHAT_MODEL", "deepseek/deepseek-chat")
 # Model for embeddings
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-large-instruct")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "together_ai/intfloat/multilingual-e5-large-instruct")
 
 # Approximate number of clusters to aim for. Fine-tune based on results.
 # Alternatively, use algorithms like DBSCAN that don't require specifying k.
@@ -85,10 +85,6 @@ DATABASE_FILE = "meridian.db"  # Keep for backward compatibility
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATABASE_FILE}")
-
-# API Keys
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY")
 
 # Flask configuration
 FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "dev-key-change-in-production")

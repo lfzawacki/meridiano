@@ -1,0 +1,12 @@
+.git
+.venv
+__pycache__
+*.pyc
+.env
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+dist
+build
+meridian.db

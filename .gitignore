@@ -19,3 +19,7 @@ meridian.db
 .DS_Store
 Thumbs.db
 .aider*
+
+src/meridiano.egg-info/
+
+.coverage

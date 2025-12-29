@@ -7,7 +7,7 @@ from typing import Optional
 
 from sqlmodel import Field, Session, SQLModel, create_engine, text
 
-import config_base as config
+from . import config_base as config
 
 
 class Article(SQLModel, table=True):
@@ -127,9 +127,9 @@ def create_db_and_tables():
                 # Create full-text search index
                 session.exec(
                     text("""
-                    CREATE INDEX IF NOT EXISTS idx_articles_fts 
+                    CREATE INDEX IF NOT EXISTS idx_articles_fts
                     ON articles USING GIN(
-                        to_tsvector('english', 
+                        to_tsvector('english',
                             coalesce(title, '') || ' ' || coalesce(raw_content, '')
                         )
                     )

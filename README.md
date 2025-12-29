@@ -9,83 +9,83 @@ Meridiano cuts through the news noise by scraping configured sources, analyzing 
 
 Based on the original project <https://github.com/iliane5/meridian>
 
-https://github.com/user-attachments/assets/2caf1844-5112-4a89-96b5-c018ca308c99
-
+<https://github.com/user-attachments/assets/2caf1844-5112-4a89-96b5-c018ca308c99>
 
 ## Why It Exists
 
 Inspired by the concept of presidential daily briefings, Meridiano aims to provide similar focused intelligence, personalized for individual users. In an era of information overload, it helps you:
 
-*   Stay informed on key global or specific topical events without drowning in noise.
-*   Understand context beyond headlines through AI analysis.
-*   Track developing stories via article clustering.
-*   Leverage AI for summarization and impact assessment.
-*   Maintain control through customizable feed profiles and open-source code.
+* Stay informed on key global or specific topical events without drowning in noise.
+* Understand context beyond headlines through AI analysis.
+* Track developing stories via article clustering.
+* Leverage AI for summarization and impact assessment.
+* Maintain control through customizable feed profiles and open-source code.
 
 Built for the curious mind wanting depth and relevance without the endless time sink of manual news consumption.
 
 ## Key Features
 
-*   **Customizable Sources**: Define RSS feed lists via simple Python configuration files (`feeds/`).
-*   **Multi-Stage Processing**: Modular pipeline (scrape, process, rate, brief) controllable via CLI.
-*   **AI Analysis**: Uses Deepseek for summarization, impact rating, cluster analysis, and brief synthesis. Needs another AI provider for embeddings.
-*   **Configurable Prompts**: Tailor LLM prompts for analysis and synthesis per feed profile.
-*   **Smart Clustering**: Groups related articles using embeddings (via your chosen API) and KMeans.
-*   **Impact Rating**: AI assigns a 1-10 impact score to articles based on their summary.
-*   **Image Extraction**: Attempts to fetch representative images from RSS or article OG tags.
-*   **FTS5 Search**: Fast and relevant full-text search across article titles and content.
-*   **Web Interface**: Clean Flask-based UI to browse briefings and articles, with filtering (date, profile), sorting, pagination, and search.
-*   **Simple Tech**: Built with Python, SQLite, and common libraries for easy setup and deployment.
+* **Customizable Sources**: Define RSS feed lists via simple Python configuration files (`feeds/`).
+* **Multi-Stage Processing**: Modular pipeline (scrape, process, rate, brief) controllable via CLI.
+* **AI Analysis**: Use any model you want for summarization, impact rating, cluster analysis, and brief synthesis. Needs another AI provider for embeddings.
+* **Configurable Prompts**: Tailor LLM prompts for analysis and synthesis per feed profile.
+* **Smart Clustering**: Groups related articles using embeddings (via your chosen API) and KMeans.
+* **Impact Rating**: AI assigns a 1-10 impact score to articles based on their summary.
+* **Image Extraction**: Attempts to fetch representative images from RSS or article OG tags.
+* **FTS5 Search**: Fast and relevant full-text search across article titles and content.
+* **Web Interface**: Clean Flask-based UI to browse briefings and articles, with filtering (date, profile), sorting, pagination, and search.
 
 ## How It Works
 
-1.  **Configuration**: Load base settings (`config_base.py`) and feed-specific settings (`feeds/<profile_name>.py`), including RSS feeds and custom prompts.
-2.  **CLI Control**: `run_briefing.py` orchestrates the stages based on CLI arguments (`--feed`, `--scrape`, `--process`, `--rate`, `--generate`, `--all`).
-3.  **Scraping**: Fetches RSS, extracts article content, attempts to find an image (RSS or OG tag), and saves metadata (including `feed_profile`) to the `articles` table. FTS triggers populate `articles_fts`.
-4.  **Processing**: Fetches unprocessed articles (per profile), generates summaries (using Deepseek), generates embeddings (using configured provider), and updates the `articles` table.
-5.  **Rating**: Fetches unrated articles (per profile), asks Deepseek to rate impact based on summary, and updates the `articles` table.
-6.  **Brief Generation**: Fetches recent, processed articles for the specified `feed_profile`, clusters them, analyzes clusters using profile-specific prompts (Deepseek), synthesizes a final brief using profile-specific prompts (Deepseek), and saves it to the `briefs` table.
-7.  **Web Interface**: `app.py` (Flask) serves the UI, allowing users to browse briefs and articles, search (FTS), filter (profile, date), sort (date, impact), and paginate results.
+1. **Configuration**: Load base settings (`config_base.py`) and feed-specific settings (`feeds/<profile_name>.py`), including RSS feeds and custom prompts.
+2. **CLI Control**: `run_briefing.py` orchestrates the stages based on CLI arguments (`--feed`, `--scrape-articles`, `--process-articles`, `--rate-articles`, `--generate-brief`, `--all`).
+3. **Scraping**: Fetches RSS, extracts article content, attempts to find an image (RSS or OG tag), and saves metadata (including `feed_profile`) to the `articles` table. FTS triggers populate `articles_fts`.
+4. **Processing**: Fetches unprocessed articles (per profile), generates summaries, generates embeddings, and updates the `articles` table.
+5. **Rating**: Fetches unrated articles (per profile), uses an LLM to rate impact based on summary, and updates the `articles` table.
+6. **Brief Generation**: Fetches recent, processed articles for the specified `feed_profile`, clusters them, analyzes clusters using profile-specific prompts, synthesizes a final brief using profile-specific prompts, and saves it to the `briefs` table.
+7. **Web Interface**: `app.py` (Flask) serves the UI, allowing users to browse briefs and articles, search (FTS), filter (profile, date), sort (date, impact), and paginate results.
 
 ## Tech Stack
 
-*   **Backend**: Python 3.10+
-*   **Database**: SQLite (with FTS5 enabled)
-*   **Web Framework**: Flask
-*   **AI APIs**:
-    *   Deepseek API (Summaries, Rating, Analysis, Synthesis)
-    *   Together AI API (Embeddings - or your configured provider)
-*   **Core Libraries**:
-    *   `feedparser` (RSS handling)
-    *   `requests` (HTTP requests)
-    *   `trafilatura` (Main content extraction)
-    *   `beautifulsoup4` / `lxml` (HTML parsing for OG tags)
-    *   `openai` (Python client for interacting with Deepseek/TogetherAI APIs)
-    *   `scikit-learn`, `numpy` (Clustering)
-    *   `python-dotenv` (Environment variables)
-    *   `argparse` (CLI arguments)
-    *   `markdown` (Rendering content in web UI)
-*   **Frontend**: HTML, CSS, minimal vanilla JavaScript (for date filter toggle)
+* **Backend**: Python 3.10+
+* **Database**: SQLite or PostgreSQL
+* **Web Framework**: Flask
+* **AI APIs**:
+  * liteLLM (Summaries, Rating, Analysis, Synthesis)
+  * Together AI API (Embeddings - or your configured provider)
+* **Core Libraries**:
+  * `feedparser` (RSS handling)
+  * `requests` (HTTP requests)
+  * `trafilatura` (Main content extraction)
+  * `beautifulsoup4` / `lxml` (HTML parsing for OG tags)
+  * `liteLLM` (Python client for interacting with LLM APIs)
+  * `scikit-learn`, `numpy` (Clustering)
+  * `python-dotenv` (Environment variables)
+  * `argparse` (CLI arguments)
+  * `markdown` (Rendering content in web UI)
+* **Frontend**: HTML, CSS, minimal vanilla JavaScript (for date filter toggle)
 
 ## Getting Started
 
 **Prerequisites**:
 
-*   Python 3.10 or later
-*   Git (optional, for cloning)
-*   API Keys:
-    *   Deepseek API Key
-    *   Together AI API Key (or key for your chosen embedding provider)
+* Python 3.10 or later
+* Git (optional, for cloning)
+* API Keys:
+  * Deepseek API Key (or your chosen LLM provider)
+  * Together AI API Key (or key for your chosen embedding provider)
 
 **Setup**:
 
-1.  **Clone the repository (or download files):**
+1. **Clone the repository (or download files):**
+
     ```bash
     git clone <your-repo-url> meridiano
     cd meridiano
     ```
 
-2.  **Create and activate a virtual environment:**
+2. **Create and activate a virtual environment:**
+
     ```bash
     python -m venv venv
     # On macOS/Linux:
@@ -94,28 +94,30 @@ Built for the curious mind wanting depth and relevance without the endless time 
     .\venv\Scripts\activate
     ```
 
-3.  **Install dependencies:**
+3. **Install dependencies:**
+
     ```bash
-    pip install -r requirements.txt
+    uv sync
     ```
 
-4.  **Configure API Keys:**
-    *   Create a file named `.env` in the project root.
-    *   Add your API keys:
+4. **Configure API Keys:**
+    * Copy `.env.example` into a file named `.env` in the project root.
+    * Add your API keys (more instructions in the example file):
+
         ```dotenv
         DEEPSEEK_API_KEY="your_deepseek_api_key_here"
-        EMBEDDING_API_KEY="your_togetherai_or_other_embedding_api_key_here"
+        TOGETHER_AI_API_KEY="your_togetherai_or_other_embedding_api_key_here"
         ```
 
-5.  **Configure Feeds and Prompts:**
-    *   Review `config_base.py` for default settings and prompts.
-    *   Create a `feeds/` directory in the project root.
-    *   Inside `feeds/`, create profile configuration files (e.g., `default.py`, `tech.py`, `brazil.py`).
-    *   Each `feeds/*.py` file **must** contain an `RSS_FEEDS = [...]` list.
-    *   Optionally, define `PROMPT_CLUSTER_ANALYSIS` or `PROMPT_BRIEF_SYNTHESIS` in a `feeds/*.py` file to override the defaults from `config_base.py` for that specific profile. Define `EMBEDDING_MODEL` if overriding the default.
+5. **Configure Feeds and Prompts:**
+    * Review `src/meridiano/config_base.py` for default settings and prompts.
+    * Inside `src/meridiano/feeds/`, create profile configuration files (e.g., `default.py`, `tech.py`, `brazil.py`).
+    * Each `feeds/*.py` file **must** contain an `RSS_FEEDS = [...]` list.
+    * Optionally, define `PROMPT_CLUSTER_ANALYSIS` or `PROMPT_BRIEF_SYNTHESIS` in a `feeds/*.py` file to override the defaults from `config_base.py` for that specific profile. Define `EMBEDDING_MODEL` or `LLM_CHAT_MODEL` if overriding the default.
 
-6.  **Initialize Database:**
-    *   The database (`meridian.db`) and its schema (including FTS tables) are created automatically the first time you run `run_briefing.py` or `app.py`.
+6. **Initialize Database:**
+    * Use DATABASE_URL in `.env` for postgresql support or leave it unchanged for Sqlite
+    * The database and its schema (including FTS tables) are created automatically the first time you run `run_briefing.py` or `app.py`.
 
 ## Running the Application
 
@@ -125,64 +127,134 @@ Meridiano consists of a command-line script (`run_briefing.py`) for data process
 
 Use the command line to run different stages for specific feed profiles.
 
-*   **Arguments:**
-    *   `--feed <profile_name>`: Specify the profile to use (e.g., `default`, `tech`, `brazil`). Defaults to `default`.
-    *   `--scrape-articles`: Run only the scraping stage.
-    *   `--process-articles`: Run only the summarization/embedding stage (per profile).
-    *   `--rate-articles`: Run only the impact rating stage (per profile).
-    *   `--generate-brief`: Run only the brief generation stage (per profile).
-    *   `--all`: Run all stages sequentially for the specified profile.
-    *   *(No stage argument)*: Defaults to running all stages (`--all`).
+* **Arguments:**
+  * `--feed <profile_name>`: Specify the profile to use (e.g., `default`, `tech`, `brazil`). Defaults to `default`.
+  * `--scrape-articles`: Run only the scraping stage.
+  * `--process-articles`: Run only the summarization/embedding stage (per profile).
+  * `--rate-articles`: Run only the impact rating stage (per profile).
+  * `--generate-brief`: Run only the brief generation stage (per profile).
+  * `--all`: Run all stages sequentially for the specified profile.
+  * `-m` or `--model`: Override the chat model (e.g., `ollama:qwen3:30b`).
+  * `-n` or `--limit`: Limit the number of articles to process (e.g., `10`).
+  * *(No stage argument)*: Defaults to running all stages (`--all`).
 
-*   **Examples:**
+* **Examples:**
+
     ```bash
     # Scrape articles for the 'tech' profile
-    python run_briefing.py --feed tech --scrape-articles
+    uv run -m meridiano.run_briefing --feed tech --scrape-articles
 
     # Process and rate articles for the 'default' profile
-    python run_briefing.py --feed default --process-articles
-    python run_briefing.py --feed default --rate-articles
+    uv run -m meridiano.run_briefing --feed default --process-articles
+    uv run -m meridiano.run_briefing --feed default --rate-articles
 
     # Generate the brief for the 'brazil' profile
-    python run_briefing.py --feed brazil --generate-brief
+    uv run -m meridiano.run_briefing --feed brazil --generate-brief
 
     # Run all stages for the 'tech' profile
-    python run_briefing.py --feed tech --all
+    uv run -m meridiano.run_briefing --feed tech --all
+
+    # Run with a specific local model and limit to 10 articles
+    uv run -m meridiano.run_briefing --feed tech --all -m ollama:qwen3:30b -n 10
     ```
 
-*   **Scheduling:** For automatic daily runs, use `cron` (Linux/macOS) or Task Scheduler (Windows) to execute the desired `run_briefing.py` command(s) daily. Remember to use the full path to the Python executable within your virtual environment. Example cron job (runs all stages for 'default' profile at 7 AM):
+* **Scheduling:** For automatic daily runs, use `cron` (Linux/macOS) or Task Scheduler (Windows) to execute the desired `run_briefing.py` command(s) daily. Remember to use the full path to the Python executable within your virtual environment. Example cron job (runs all stages for 'default' profile at 7 AM):
+
     ```cron
     0 7 * * * /path/to/meridiano/venv/bin/python /path/to/meridiano/run_briefing.py --feed default --all >> /path/to/meridiano/meridiano.log 2>&1
     ```
 
 **2. Running the Web Server (`app.py`)**
 
-*   Start the Flask development server:
+* Start the Flask development server:
+
     ```bash
-    python app.py
+    uv run -m meridiano.app
     ```
-*   Access the web interface in your browser, usually at `http://localhost:5000`.
-*   For more robust deployment, consider using a production WSGI server like Gunicorn:
+
+* Access the web interface in your browser, usually at `http://localhost:5000`.
+* For more robust deployment, consider using a production WSGI server like Gunicorn:
+
     ```bash
     # pip install gunicorn
     gunicorn --bind 0.0.0.0:5000 app:app
     ```
 
+## Running on Docker
+
+Alternatively to the steps above, you can run Meridiano using Docker.
+There is a ./docker directory with a `Dockerfile` and `compose.yml` file to help you get started.
+We also provide a sample `Makefile` to simplify common tasks.
+
+**Available Make commands:**
+
+* `make build`: Build the Docker image.
+* `make up`: Start the web application and database.
+* `make run`: Run the briefing process in Docker.
+* `make check-ollama`: Check connectivity to a local Ollama instance.
+* `make bare-run`: Run the briefing process locally (without Docker) using `uv`.
+* `make lint`: Run code linting.
+* `make format`: Run code formatting.
+* `make test`: Run tests.
+
+**Build the Docker image:**
+
+```bash
+make build
+```
+
+**Run the application using Docker Compose:**
+
+To run the web application and have it accessible on port 5000 while also running the postgres database, use:
+
+```bash
+make up
+```
+
+After running this command, you can access the web interface at `http://localhost:5000`.
+When you do this for the first time, the database and tables will not yet exist, so you should run the briefing process
+once to initialize everything:
+
+```bash
+make run
+```
+
+You can kill the command line application with `CTRL+C` after a few moments, as the database will now be initialized.
+You should now be able to refresh the web interface and see it working.
+
+If you need to pass arguments to the `run_briefing.py` script, you can do so by appending them after `make run`, like this:
+
+```bash
+make run ARGS="--feed tech --all"
+```
+
+**Scheduling with docker:**
+
+To schedule the briefing process to run daily using cron within the Docker environment, you can set up a cron job on
+your host machine that executes the Docker command to run the briefing process. You can still use the Makefile helper
+command for this. Here is an example cron job that runs the briefing process daily at 7 AM:
+
+```cron
+0 7 * * * cd /path/to/meridiano && make run ARGS="--feed default --all"  >> /path/to/meridiano/meridiano.log 2>&1
+```
+
+**Note:** Make sure to replace `/path/to/meridiano` with the actual path to your Meridiano project directory.
+
 ## Contributing
 
-1. Fork the repository on GitHub.
-2. Create a new branch for your feature or bug fix (git checkout -b feature/your-feature-name).
-3. Make your changes, adhering to the existing code style where possible.
-4. (Optional but Recommended) Add tests for your changes if applicable.
-5. Ensure your changes don't break existing functionality.
-6. Commit your changes (git commit -am 'Add some feature').
-7. Push to your branch (git push origin feature/your-feature-name).
-8. Create a Pull Request on GitHub, describing your changes clearly.
+Read the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines on how to contribute to this project.
 
-## Credits
+## Contributors
 
-* Original concept and project: https://github.com/iliane5/meridian
-* Icon: https://www.svgrepo.com/svg/405007/compass
+* [commonProgrammerr](https://github.com/commonProgrammerr) for adding postgresql compatibility
+* [Costiss](https://github.com/Costiss) for contributing the migration to uv package manager and litellm
+* [marcostx](https://github.com/marcostx) for the unit tests and bug fixes
+* [garciadias](https://github.com/garciadias) for docker support, setting the project as a standard python package and several other contributions
+
+### Additional Credits
+
+* Original concept and project: <https://github.com/iliane5/meridian>
+* Icon: <https://www.svgrepo.com/svg/405007/compass>
 
 ## License
 

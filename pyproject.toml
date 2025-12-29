@@ -1,9 +1,9 @@
 [project]
 name = "meridiano"
-version = "0.1.0"
+version = "0.1.1"
 description = "Meridiano"
 readme = "README.md"
-authors = [{ name = "Rafael Dias", email = "rafaelagd@gmail.com" }]
+authors = [{ name = "Lucas Zawacki", email = "lfzawacki@gmail.com" }]
 requires-python = ">=3.13"
 dependencies = [
     "beautifulsoup4>=4.14.3",

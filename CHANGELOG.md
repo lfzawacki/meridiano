@@ -16,4 +16,9 @@
 - update session management in `app.py`
 - enhancements in `run_briefing.py` parsing logic and error handling
 
+### Added
+
+- Added A Terra é Redonda RSS feed (`https://aterraeredonda.com.br/feed/`) to the brasil feed profile
+- Added feed configuration validation tests (`tests/test_feeds.py`)
+
 

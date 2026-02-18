@@ -191,3 +191,63 @@ class TestCollectionsRoutes:
         """Test viewing a non-existent collection."""
         response = client.get("/collection/999")
         assert response.status_code == 404
+
+
+class TestHeaderActiveLinks:
+    """Tests for active navigation link styling in the header."""
+
+    def test_briefs_link_active_on_index(self, client):
+        """Test that the 'Briefs' link is active on the index page."""
+        response = client.get("/")
+        assert response.status_code == 200
+        # Check for active link
+        assert b'class="active">Briefs</a>' in response.data
+        # Check that other links are not active
+        assert b'class="active">Articles</a>' not in response.data
+        assert b'class="active">Collections</a>' not in response.data
+
+    def test_articles_link_active_on_articles_list(self, client):
+        """Test that the 'Articles' link is active on the articles list page."""
+        response = client.get("/articles")
+        assert response.status_code == 200
+        assert b'class="active">Articles</a>' in response.data
+        assert b'class="active">Briefs</a>' not in response.data
+        assert b'class="active">Collections</a>' not in response.data
+
+    def test_articles_link_active_on_add_article(self, client):
+        """Test that the 'Articles' link is active on the add article page."""
+        response = client.get("/add_article")
+        assert response.status_code == 200
+        assert b'class="active">Articles</a>' in response.data
+        assert b'class="active">Briefs</a>' not in response.data
+        assert b'class="active">Collections</a>' not in response.data
+
+    def test_articles_link_active_on_view_article(self, client, sample_article_data):
+        """Test that the 'Articles' link is active on the view article page."""
+        with app.app_context():
+            article_id = add_article(**sample_article_data)
+
+        response = client.get(f"/article/{article_id}")
+        assert response.status_code == 200
+        assert b'class="active">Articles</a>' in response.data
+        assert b'class="active">Briefs</a>' not in response.data
+        assert b'class="active">Collections</a>' not in response.data
+
+    def test_collections_link_active_on_collections_list(self, client):
+        """Test that the 'Collections' link is active on the collections list page."""
+        response = client.get("/collections")
+        assert response.status_code == 200
+        assert b'class="active">Collections</a>' in response.data
+        assert b'class="active">Briefs</a>' not in response.data
+        assert b'class="active">Articles</a>' not in response.data
+
+    def test_collections_link_active_on_view_collection(self, client):
+        """Test that the 'Collections' link is active on a collection detail page."""
+        with app.app_context():
+            collection_id = create_collection("Test Collection")
+
+        response = client.get(f"/collection/{collection_id}")
+        assert response.status_code == 200
+        assert b'class="active">Collections</a>' in response.data
+        assert b'class="active">Briefs</a>' not in response.data
+        assert b'class="active">Articles</a>' not in response.data

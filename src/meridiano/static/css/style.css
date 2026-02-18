@@ -829,6 +829,21 @@ blockquote {
     border-color: #0a58ca;
 }
 
+.btn-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-size: 1.1rem;
+    color: #6c757d; /* Muted color */
+    transition: color 0.15s ease-in-out;
+    vertical-align: middle; /* Better alignment with text */
+}
+
+.btn-delete:hover {
+    color: #dc3545; /* Red on hover */
+}
+
 /* --- Header Action Button Styling --- */
 .btn-add-article {
     color: #198754; /* Green text */

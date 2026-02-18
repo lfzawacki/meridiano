@@ -192,6 +192,48 @@ class TestCollectionsRoutes:
         response = client.get("/collection/999")
         assert response.status_code == 404
 
+    def test_delete_collection_post(self, client):
+        """Test POST to delete a collection."""
+        # 1. Create a collection to delete
+        with app.app_context():
+            coll_id = create_collection("Ephemeral Collection")
+
+        # Check it exists on the collections page
+        response = client.get("/collections")
+        assert b"Ephemeral Collection" in response.data
+
+        # 2. Send POST request to delete it
+        response = client.post(
+            f"/collection/{coll_id}/delete",
+            follow_redirects=True,
+        )
+
+        # 3. Verify response and effects
+        assert response.status_code == 200
+        # Check we are back on the collections list page
+        assert b"Collections" in response.data
+        # Check for success flash message
+        assert b'Collection &#34;Ephemeral Collection&#34; has been deleted.' in response.data
+        # Check the link to the collection is no longer on the page.
+        # We don't check for the name alone, as it appears in the flash message.
+        assert f'<a href="/collection/{coll_id}"'.encode() not in response.data
+        assert b"No collections yet. Create one above." in response.data
+
+    def test_delete_nonexistent_collection_post(self, client):
+        """Test POST to delete a collection that does not exist."""
+        # 1. Send POST request to delete a non-existent collection
+        response = client.post(
+            "/collection/9999/delete",
+            follow_redirects=True,
+        )
+
+        # 2. Verify response
+        assert response.status_code == 200
+        # Check we are back on the collections list page
+        assert b"Collections" in response.data
+        # Check for error flash message
+        assert b"Collection with ID 9999 not found, could not delete." in response.data
+
 
 class TestHeaderActiveLinks:
     """Tests for active navigation link styling in the header."""

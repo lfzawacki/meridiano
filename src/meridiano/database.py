@@ -438,6 +438,23 @@ def get_collection_by_id(collection_id: int) -> Optional[Dict[str, Any]]:
         return {"id": coll.id, "name": coll.name, "created_at": coll.created_at}
 
 
+def delete_collection(collection_id: int) -> None:
+    """Deletes a collection and all its article associations."""
+    with get_session() as session:
+        # First, delete associations
+        stmt_assoc = select(CollectionArticle).where(CollectionArticle.collection_id == collection_id)
+        assocs = session.exec(stmt_assoc).all()
+        for assoc in assocs:
+            session.delete(assoc)
+
+        # Then, delete the collection itself
+        coll = session.get(Collection, collection_id)
+        if coll:
+            session.delete(coll)
+
+        session.commit()
+
+
 def add_article_to_collection(collection_id: int, article_id: int) -> None:
     """Associate an article with a collection (idempotent)."""
     with get_session() as session:

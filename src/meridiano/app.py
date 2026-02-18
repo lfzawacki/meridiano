@@ -6,7 +6,7 @@ import os
 from datetime import date, datetime, timedelta
 
 import markdown
-from flask import Flask, abort, flash, redirect, render_template, request, url_for, jsonify
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, url_for
 from markupsafe import Markup
 from sqlmodel import select
 
@@ -20,6 +20,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "a_default_secret_key_for_develop
 # Register the filter with Jinja
 app.jinja_env.filters["datetimeformat"] = format_datetime
 
+
 def process_artciles_content(articles_data):
     return [
         {
@@ -30,6 +31,7 @@ def process_artciles_content(articles_data):
         }
         for article in articles_data
     ]
+
 
 @app.route("/")
 def index():
@@ -367,6 +369,20 @@ def view_collection(collection_id):
     articles = database.get_articles_for_collection(collection_id)
     articles = process_artciles_content(articles)
     return render_template("collection_detail.html", collection=coll, articles=articles)
+
+
+@app.route("/collection/<int:collection_id>/delete", methods=["POST"])
+def delete_collection(collection_id):
+    """Deletes a collection."""
+    coll = database.get_collection_by_id(collection_id)
+    if coll is None:
+        flash(f"Collection with ID {collection_id} not found, could not delete.", "error")
+        return redirect(url_for("collections"))
+
+    collection_name = coll.get("name", f"ID {collection_id}")
+    database.delete_collection(collection_id)
+    flash(f'Collection "{collection_name}" has been deleted.', "success")
+    return redirect(url_for("collections"))
 
 
 @app.route("/article/<int:article_id>/collections_status")

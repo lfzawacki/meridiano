@@ -22,6 +22,7 @@ from meridiano.database import (
     add_article,
     add_article_to_collection,
     create_collection,
+    delete_collection,
     get_all_articles,
     get_article_by_id,
     get_article_count_for_collection,
@@ -287,3 +288,25 @@ class TestCollections:
         assert len(articles) == 3
         retrieved_ids = {a["id"] for a in articles}
         assert retrieved_ids == set(article_ids)
+
+    def test_delete_collection(self, sample_article_data):
+        """Test deleting a collection and its associations, but not the articles."""
+        # 1. Setup: Create an article and a collection
+        article_id = add_article(**sample_article_data)
+        coll_id = create_collection("To Delete")
+
+        # 2. Associate them
+        add_article_to_collection(coll_id, article_id)
+        assert get_article_count_for_collection(coll_id) == 1
+
+        # 3. Delete the collection
+        delete_collection(coll_id)
+
+        # 4. Verify collection is gone
+        assert get_collection_by_id(coll_id) is None
+        assert get_collections() == []  # No collections should be left
+
+        # 5. Verify the article still exists
+        article = get_article_by_id(article_id)
+        assert article is not None
+        assert article["id"] == article_id

@@ -6,7 +6,14 @@
     <div class="container">
         {% include 'header.html' %}
 
-        <h2>Collection: {{ collection['name'] }}</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>Collection: {{ collection['name'] }}</h2>
+            <form action="{{ url_for('delete_collection', collection_id=collection['id']) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this collection? This action cannot be undone.');" style="margin: 0;">
+                <button type="submit" title="Delete Collection" class="btn-delete">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </form>
+        </div>
         <div class="timestamp">Created: {{ collection['created_at'] | datetimeformat }}</div>
 
         <hr>

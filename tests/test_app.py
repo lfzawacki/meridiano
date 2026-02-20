@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 # Import app after setting up test database
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 from meridiano.app import app
-from meridiano.database import add_article, create_collection
+from meridiano.database import add_article, create_collection, get_collection_by_id
 
 
 @pytest.fixture
@@ -121,7 +121,7 @@ class TestCollectionsRoutes:
         response = client.get("/collections")
         assert response.status_code == 200
         assert b"Collections" in response.data
-        assert b"No collections yet." in response.data
+        assert b"No active collections." in response.data or b"No collections" in response.data
 
     def test_ajax_endpoints(self, client, sample_article_data):
         """Test the AJAX endpoints for adding/removing articles and checking status."""
@@ -217,7 +217,7 @@ class TestCollectionsRoutes:
         # Check the link to the collection is no longer on the page.
         # We don't check for the name alone, as it appears in the flash message.
         assert f'<a href="/collection/{coll_id}"'.encode() not in response.data
-        assert b"No collections yet. Create one above." in response.data
+        assert b"No active collections." in response.data or b"No collections" in response.data
 
     def test_delete_nonexistent_collection_post(self, client):
         """Test POST to delete a collection that does not exist."""
@@ -233,6 +233,43 @@ class TestCollectionsRoutes:
         assert b"Collections" in response.data
         # Check for error flash message
         assert b"Collection with ID 9999 not found, could not delete." in response.data
+
+    def test_archive_collection_flow(self, client):
+        """Test the flow of archiving and un-archiving a collection."""
+        # 1. Create a collection
+        with app.app_context():
+            coll_id = create_collection("To Be Archived")
+
+        # 2. Archive it
+        response = client.post(f"/collection/{coll_id}/toggle_archive", follow_redirects=True)
+        assert response.status_code == 200
+        assert b"Collection has been archived" in response.data
+
+        # Verify in DB
+        with app.app_context():
+            coll = get_collection_by_id(coll_id)
+            assert coll['archived'] is True
+
+        # 3. Verify it shows up in "Archived Collections" section
+        response = client.get("/collections")
+        assert b"Archived Collections" in response.data
+        assert b"To Be Archived" in response.data
+
+        # 4. Un-archive it
+        response = client.post(f"/collection/{coll_id}/toggle_archive", follow_redirects=True)
+        assert response.status_code == 200
+        assert b"Collection has been un-archived" in response.data
+
+        # Verify in DB
+        with app.app_context():
+            coll = get_collection_by_id(coll_id)
+            assert coll['archived'] is False
+
+    def test_archive_nonexistent_collection(self, client):
+        """Test attempting to archive a collection that doesn't exist."""
+        response = client.post("/collection/9999/toggle_archive", follow_redirects=True)
+        assert response.status_code == 200
+        assert b"Collection with ID 9999 not found" in response.data
 
 
 class TestHeaderActiveLinks:

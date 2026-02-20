@@ -8,11 +8,24 @@
 
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h2>Collection: {{ collection['name'] }}</h2>
-            <form action="{{ url_for('delete_collection', collection_id=collection['id']) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this collection? This action cannot be undone.');" style="margin: 0;">
-                <button type="submit" title="Delete Collection" class="btn-delete">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </form>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <form action="{{ url_for('toggle_archive_collection', collection_id=collection['id']) }}" method="POST" style="margin: 0;">
+                    {% if collection.get('archived') %}
+                        <button type="submit" title="Un-archive Collection" class="btn btn-sm" style="border: none; background: transparent; color: #28a745; font-size: 1.2rem;">
+                            <i class="fas fa-box-open"></i>
+                        </button>
+                    {% else %}
+                        <button type="submit" title="Archive Collection" class="btn btn-sm" style="border: none; background: transparent; color: #6c757d; font-size: 1.2rem;">
+                            <i class="fas fa-archive"></i>
+                        </button>
+                    {% endif %}
+                </form>
+                <form action="{{ url_for('delete_collection', collection_id=collection['id']) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this collection? This action cannot be undone.');" style="margin: 0;">
+                    <button type="submit" title="Delete Collection" class="btn-delete" style="font-size: 1.2rem;">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </form>
+            </div>
         </div>
         <div class="timestamp">Created: {{ collection['created_at'] | datetimeformat }}</div>
 

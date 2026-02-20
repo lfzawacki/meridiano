@@ -353,10 +353,17 @@ def collections():
         flash(f'Collection "{name}" created (ID: {coll_id}).', "success")
         return redirect(url_for("view_collection", collection_id=coll_id))
 
-    cols_data = database.get_collections()
+    # Fetch active collections
+    cols_data = database.get_collections(archived=False)
     for c in cols_data:
         c["article_count"] = database.get_article_count_for_collection(c["id"])
-    return render_template("collections.html", collections=cols_data)
+
+    # Fetch archived collections
+    archived_data = database.get_collections(archived=True)
+    for c in archived_data:
+        c["article_count"] = database.get_article_count_for_collection(c["id"])
+
+    return render_template("collections.html", collections=cols_data, archived_collections=archived_data)
 
 
 @app.route("/collection/<int:collection_id>")
@@ -385,6 +392,19 @@ def delete_collection(collection_id):
     return redirect(url_for("collections"))
 
 
+@app.route("/collection/<int:collection_id>/toggle_archive", methods=["POST"])
+def toggle_archive_collection(collection_id):
+    """Toggle the archived status of a collection."""
+    result = database.toggle_collection_archive_status(collection_id)
+    if result is None:
+        flash(f"Collection with ID {collection_id} not found.", "error")
+    else:
+        status_msg = "archived" if result else "un-archived"
+        flash(f"Collection has been {status_msg}.", "success")
+
+    return redirect(url_for("collections"))
+
+
 @app.route("/article/<int:article_id>/collections_status")
 def get_article_collections_status(article_id):
     """AJAX endpoint to get collections and membership status for an article."""
@@ -393,7 +413,8 @@ def get_article_collections_status(article_id):
         if not article:
             return jsonify({"status": "error", "message": "Article not found"}), 404
 
-        collections = database.get_collections()
+        # Only return active collections for selection dropdowns
+        collections = database.get_collections(archived=False)
         collections_with_status = []
         for c in collections:
             coll_articles = database.get_articles_for_collection(c["id"])

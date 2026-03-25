@@ -25,7 +25,7 @@
         <div class="article-link-wrapper">
           <a href="{{ url_for('view_article', article_id=article['id']) }}"
              class="article-link">{{ article['title'] | default("Untitled Article") }}</a>
-          <a href="{{ article['url'] }}" class="article-link-original">
+          <a href="{{ article['url'] }}" class="article-link-original" target="_blank" rel="noopener noreferrer">
             <i class="fas fa-external-link" title="Original Article"></i>
           </a>
           <span class="collections-control" style="margin-left:10px; position: relative;">

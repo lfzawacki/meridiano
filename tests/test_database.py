@@ -22,6 +22,7 @@ from meridiano.database import (
     add_article,
     add_article_to_collection,
     create_collection,
+    delete_collection,
     get_all_articles,
     get_article_by_id,
     get_article_count_for_collection,
@@ -32,6 +33,7 @@ from meridiano.database import (
     get_distinct_feed_profiles,
     remove_article_from_collection,
     save_brief,
+    toggle_collection_archive_status,
 )
 
 
@@ -232,9 +234,10 @@ class TestCollections:
 
         retrieved = get_collection_by_id(coll_id)
         assert retrieved["name"] == "Test Collection"
+        assert retrieved["archived"] is False
 
     def test_get_collections(self):
-        """Test retrieving all collections."""
+        """Test retrieving active collections."""
         # Initially empty
         assert get_collections() == []
 
@@ -246,6 +249,48 @@ class TestCollections:
         # Test sorting by name
         assert collections[0]["name"] == "Collection A"
         assert collections[1]["name"] == "Collection B"
+
+    def test_toggle_archive_collection(self):
+        """Test archiving and un-archiving a collection."""
+        coll_id = create_collection("To Archive")
+
+        # Initial state: Not archived
+        coll = get_collection_by_id(coll_id)
+        assert coll["archived"] is False
+
+        # Toggle: Should become archived
+        new_status = toggle_collection_archive_status(coll_id)
+        assert new_status is True
+        coll = get_collection_by_id(coll_id)
+        assert coll["archived"] is True
+
+        # Toggle again: Should become un-archived
+        new_status = toggle_collection_archive_status(coll_id)
+        assert new_status is False
+        coll = get_collection_by_id(coll_id)
+        assert coll["archived"] is False
+
+    def test_get_collections_filtered_by_archive(self):
+        """Test retrieving collections filtered by archived status."""
+        id1 = create_collection("Active 1")
+        id2 = create_collection("Active 2")
+        id3 = create_collection("Archived 1")
+
+        # Archive the third one
+        toggle_collection_archive_status(id3)
+
+        # Fetch active (default)
+        active_cols = get_collections(archived=False)
+        assert len(active_cols) == 2
+        active_ids = {c["id"] for c in active_cols}
+        assert id1 in active_ids
+        assert id2 in active_ids
+        assert id3 not in active_ids
+
+        # Fetch archived
+        archived_cols = get_collections(archived=True)
+        assert len(archived_cols) == 1
+        assert archived_cols[0]["id"] == id3
 
     def test_add_and_remove_article_from_collection(self, sample_article_data):
         """Test adding and removing an article from a collection."""
@@ -287,3 +332,25 @@ class TestCollections:
         assert len(articles) == 3
         retrieved_ids = {a["id"] for a in articles}
         assert retrieved_ids == set(article_ids)
+
+    def test_delete_collection(self, sample_article_data):
+        """Test deleting a collection and its associations, but not the articles."""
+        # 1. Setup: Create an article and a collection
+        article_id = add_article(**sample_article_data)
+        coll_id = create_collection("To Delete")
+
+        # 2. Associate them
+        add_article_to_collection(coll_id, article_id)
+        assert get_article_count_for_collection(coll_id) == 1
+
+        # 3. Delete the collection
+        delete_collection(coll_id)
+
+        # 4. Verify collection is gone
+        assert get_collection_by_id(coll_id) is None
+        assert get_collections() == []  # No collections should be left
+
+        # 5. Verify the article still exists
+        article = get_article_by_id(article_id)
+        assert article is not None
+        assert article["id"] == article_id

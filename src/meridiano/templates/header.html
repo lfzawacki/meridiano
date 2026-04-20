@@ -6,9 +6,9 @@
             Meridiano
         </a>
         <nav class="main-nav">
-            <a href="{{ url_for('index', **profile_params) }}">Briefs</a>
-            <a href="{{ url_for('list_articles', **profile_params) }}">Articles</a>
-            <a href="{{ url_for('collections', **profile_params) }}">Collections</a>
+            <a href="{{ url_for('index', **profile_params) }}" class="{{ 'active' if request.endpoint in ['index', 'view_brief'] else '' }}">Briefs</a>
+            <a href="{{ url_for('list_articles', **profile_params) }}" class="{{ 'active' if request.endpoint in ['list_articles', 'view_article', 'add_manual_article'] else '' }}">Articles</a>
+            <a href="{{ url_for('collections', **profile_params) }}" class="{{ 'active' if request.endpoint in ['collections', 'view_collection'] else '' }}">Collections</a>
         </nav>
         <div class="header-actions">
             <a href="{{ url_for('add_manual_article') }}" class="btn btn-add-article" title="Add New Article">

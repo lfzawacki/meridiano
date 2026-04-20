@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 
 from sqlmodel import SQLModel
 
-from meridiano.models import Article, Brief, get_session, init_db
+from meridiano.models import Article, Brief, Collection, get_session, init_db
 
 # Set test database URL
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
@@ -114,3 +114,46 @@ class TestBriefModel:
             assert brief.brief_markdown == sample_brief_data["brief_markdown"]
             assert brief.feed_profile == sample_brief_data["feed_profile"]
             assert brief.contributing_article_ids == sample_brief_data["contributing_article_ids"]
+
+
+class TestCollectionModel:
+    """Tests for Collection model."""
+
+    def test_create_collection_defaults(self):
+        """Test creating collection with defaults (archived=False)."""
+        with get_session() as session:
+            coll = Collection(name="My Collection")
+            session.add(coll)
+            session.commit()
+            session.refresh(coll)
+
+            assert coll.id is not None
+            assert coll.name == "My Collection"
+            assert coll.archived is False
+            assert coll.created_at is not None
+
+    def test_create_collection_archived(self):
+        """Test creating an archived collection directly."""
+        with get_session() as session:
+            coll = Collection(name="Old Stuff", archived=True)
+            session.add(coll)
+            session.commit()
+            session.refresh(coll)
+
+            assert coll.archived is True
+
+    def test_collection_persistence(self):
+        """Test updating archived status persists correctly."""
+        with get_session() as session:
+            coll = Collection(name="Persist Me")
+            session.add(coll)
+            session.commit()
+            session.refresh(coll)
+
+            # Update archived status
+            coll.archived = True
+            session.add(coll)
+            session.commit()
+            session.refresh(coll)
+
+            assert coll.archived is True

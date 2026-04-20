@@ -6,7 +6,7 @@ import os
 from datetime import date, datetime, timedelta
 
 import markdown
-from flask import Flask, abort, flash, redirect, render_template, request, url_for, jsonify
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, url_for
 from markupsafe import Markup
 from sqlmodel import select
 
@@ -20,6 +20,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "a_default_secret_key_for_develop
 # Register the filter with Jinja
 app.jinja_env.filters["datetimeformat"] = format_datetime
 
+
 def process_artciles_content(articles_data):
     return [
         {
@@ -30,6 +31,7 @@ def process_artciles_content(articles_data):
         }
         for article in articles_data
     ]
+
 
 @app.route("/")
 def index():
@@ -351,10 +353,17 @@ def collections():
         flash(f'Collection "{name}" created (ID: {coll_id}).', "success")
         return redirect(url_for("view_collection", collection_id=coll_id))
 
-    cols_data = database.get_collections()
+    # Fetch active collections
+    cols_data = database.get_collections(archived=False)
     for c in cols_data:
         c["article_count"] = database.get_article_count_for_collection(c["id"])
-    return render_template("collections.html", collections=cols_data)
+
+    # Fetch archived collections
+    archived_data = database.get_collections(archived=True)
+    for c in archived_data:
+        c["article_count"] = database.get_article_count_for_collection(c["id"])
+
+    return render_template("collections.html", collections=cols_data, archived_collections=archived_data)
 
 
 @app.route("/collection/<int:collection_id>")
@@ -369,6 +378,33 @@ def view_collection(collection_id):
     return render_template("collection_detail.html", collection=coll, articles=articles)
 
 
+@app.route("/collection/<int:collection_id>/delete", methods=["POST"])
+def delete_collection(collection_id):
+    """Deletes a collection."""
+    coll = database.get_collection_by_id(collection_id)
+    if coll is None:
+        flash(f"Collection with ID {collection_id} not found, could not delete.", "error")
+        return redirect(url_for("collections"))
+
+    collection_name = coll.get("name", f"ID {collection_id}")
+    database.delete_collection(collection_id)
+    flash(f'Collection "{collection_name}" has been deleted.', "success")
+    return redirect(url_for("collections"))
+
+
+@app.route("/collection/<int:collection_id>/toggle_archive", methods=["POST"])
+def toggle_archive_collection(collection_id):
+    """Toggle the archived status of a collection."""
+    result = database.toggle_collection_archive_status(collection_id)
+    if result is None:
+        flash(f"Collection with ID {collection_id} not found.", "error")
+    else:
+        status_msg = "archived" if result else "un-archived"
+        flash(f"Collection has been {status_msg}.", "success")
+
+    return redirect(url_for("collections"))
+
+
 @app.route("/article/<int:article_id>/collections_status")
 def get_article_collections_status(article_id):
     """AJAX endpoint to get collections and membership status for an article."""
@@ -377,7 +413,8 @@ def get_article_collections_status(article_id):
         if not article:
             return jsonify({"status": "error", "message": "Article not found"}), 404
 
-        collections = database.get_collections()
+        # Only return active collections for selection dropdowns
+        collections = database.get_collections(archived=False)
         collections_with_status = []
         for c in collections:
             coll_articles = database.get_articles_for_collection(c["id"])

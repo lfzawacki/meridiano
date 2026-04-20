@@ -60,9 +60,14 @@ body {
     transition: color 0.2s ease, border-color 0.2s ease;
 }
 
-.main-nav a:hover {
+.main-nav a:hover,
+.main-nav a.active {
     color: #0056b3;
     border-bottom-color: #007bff;
+}
+
+.main-nav a.active {
+    font-weight: 600; /* Bolder text for active link */
 }
 
 .header-actions {
@@ -822,6 +827,21 @@ blockquote {
     color: #fff;
     background-color: #0b5ed7;
     border-color: #0a58ca;
+}
+
+.btn-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-size: 1.1rem;
+    color: #6c757d; /* Muted color */
+    transition: color 0.15s ease-in-out;
+    vertical-align: middle; /* Better alignment with text */
+}
+
+.btn-delete:hover {
+    color: #dc3545; /* Red on hover */
 }
 
 /* --- Header Action Button Styling --- */

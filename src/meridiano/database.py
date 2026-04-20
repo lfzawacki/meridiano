@@ -413,19 +413,19 @@ def get_distinct_feed_profiles(table: str = "articles") -> List[str]:
 def create_collection(name: str) -> int:
     """Create a new collection and return its ID."""
     with get_session() as session:
-        coll = Collection(name=name, created_at=datetime.now())
+        coll = Collection(name=name, created_at=datetime.now(), archived=False)
         session.add(coll)
         session.commit()
         session.refresh(coll)
         return coll.id
 
 
-def get_collections() -> List[Dict[str, Any]]:
-    """Return available collections (id, name, created_at)."""
+def get_collections(archived: bool = False) -> List[Dict[str, Any]]:
+    """Return available collections (id, name, created_at), filtered by archived status."""
     with get_session() as session:
-        stmt = select(Collection).order_by(asc(Collection.name))
+        stmt = select(Collection).where(Collection.archived == archived).order_by(asc(Collection.name))
         cols = session.exec(stmt).all()
-        return [{"id": c.id, "name": c.name, "created_at": c.created_at} for c in cols]
+        return [{"id": c.id, "name": c.name, "created_at": c.created_at, "archived": c.archived} for c in cols]
 
 
 def get_collection_by_id(collection_id: int) -> Optional[Dict[str, Any]]:
@@ -435,7 +435,41 @@ def get_collection_by_id(collection_id: int) -> Optional[Dict[str, Any]]:
         coll = session.exec(stmt).first()
         if not coll:
             return None
-        return {"id": coll.id, "name": coll.name, "created_at": coll.created_at}
+        return {"id": coll.id, "name": coll.name, "created_at": coll.created_at, "archived": coll.archived}
+
+
+def toggle_collection_archive_status(collection_id: int) -> Optional[bool]:
+    """
+    Toggles the archived status of a collection.
+    Returns the new archived status, or None if collection not found.
+    """
+    with get_session() as session:
+        coll = session.get(Collection, collection_id)
+        if not coll:
+            return None
+
+        coll.archived = not coll.archived
+        session.add(coll)
+        session.commit()
+        session.refresh(coll)
+        return coll.archived
+
+
+def delete_collection(collection_id: int) -> None:
+    """Deletes a collection and all its article associations."""
+    with get_session() as session:
+        # First, delete associations
+        stmt_assoc = select(CollectionArticle).where(CollectionArticle.collection_id == collection_id)
+        assocs = session.exec(stmt_assoc).all()
+        for assoc in assocs:
+            session.delete(assoc)
+
+        # Then, delete the collection itself
+        coll = session.get(Collection, collection_id)
+        if coll:
+            session.delete(coll)
+
+        session.commit()
 
 
 def add_article_to_collection(collection_id: int, article_id: int) -> None:

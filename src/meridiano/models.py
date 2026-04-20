@@ -92,6 +92,7 @@ class Collection(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     created_at: datetime = Field(default_factory=datetime.now)
+    archived: bool = Field(default=False, index=True)
 
 
 # Database engine and session management
@@ -101,6 +102,28 @@ engine = create_engine(config.DATABASE_URL, echo=False)
 def create_db_and_tables():
     """Create database tables if they don't exist."""
     SQLModel.metadata.create_all(engine)
+
+    # Simple migration logic for 'archived' column in 'collections'
+    with Session(engine) as session:
+        try:
+            # Check if column exists by trying to select it
+            session.exec(text("SELECT archived FROM collections LIMIT 1"))
+        except Exception:
+            # If selection fails, the column likely doesn't exist. Add it.
+            print("Migrating 'collections' table: Adding 'archived' column...")
+            session.rollback()  # Clear the error state
+            try:
+                if "postgresql" in config.DATABASE_URL.lower():
+                    session.exec(text("ALTER TABLE collections ADD COLUMN archived BOOLEAN DEFAULT FALSE"))
+                    session.exec(text("CREATE INDEX ix_collections_archived ON collections (archived)"))
+                else:
+                    # SQLite
+                    session.exec(text("ALTER TABLE collections ADD COLUMN archived BOOLEAN DEFAULT 0"))
+                session.commit()
+                print("Migration successful.")
+            except Exception as e:
+                print(f"Migration failed: {e}")
+                session.rollback()
 
     # Old SQLite schema for reference (replaced by to_tsvector in PostgreSQL)
     """

@@ -902,6 +902,13 @@ blockquote {
 }
 
 /* --- Collections Dropdown Menu --- */
+.collections-control {
+    display: inline-block;
+    position: relative; /* Anchors the absolutely positioned menu */
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
 .collections-menu {
     position: absolute;
     right: 0;

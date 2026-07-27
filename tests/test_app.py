@@ -83,6 +83,20 @@ class TestArticlesRoute:
         response = client.get("/articles?sort_by=feed_profile&direction=asc")
         assert response.status_code == 200
 
+    def test_articles_route_single_sort_key_can_be_removed(self, client):
+        """The 'x' is offered even when a single sort key is active."""
+        response = client.get("/articles?sort_by=impact_score&direction=desc")
+        assert response.status_code == 200
+        assert b"sort-remove" in response.data
+        assert b"Clear the sort and go back to the default" in response.data
+
+    def test_articles_route_without_sort_falls_back_to_default(self, client):
+        """Clearing the last sort key lands on the default sort."""
+        response = client.get("/articles")
+        assert response.status_code == 200
+        # Published Date is active again, so its 'x' resets rather than removes.
+        assert b"Clear the sort and go back to the default" in response.data
+
 
 class TestSortArgParsing:
     """Tests for multi-key sort argument parsing."""
@@ -116,7 +130,7 @@ class TestSortArgParsing:
         assert directions == ["asc", "desc"]
 
     def test_build_sort_options_toggles_and_appends(self):
-        from meridiano.app import _build_sort_options
+        from meridiano.app import _build_sort_options, _parse_sort_args
 
         options = {opt["field"]: opt for opt in _build_sort_options(["impact_score"], ["desc"])}
 
@@ -124,7 +138,13 @@ class TestSortArgParsing:
         assert active["active"] is True
         assert active["rank"] == 1
         assert active["toggle_direction"] == ["asc"]
+        # Removing the only key leaves an empty chain, which parses back to the default.
         assert active["remove_sort_by"] == []
+        assert active["remove_direction"] == []
+        assert _parse_sort_args(active["remove_sort_by"], active["remove_direction"]) == (
+            ["published_date"],
+            ["desc"],
+        )
 
         inactive = options["published_date"]
         assert inactive["active"] is False

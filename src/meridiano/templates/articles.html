@@ -119,10 +119,10 @@
                                 {{ option.label }}
                                 {% if option.active %}<span class="sort-indicator">{{ '▲' if option.direction == 'asc' else '▼' }}</span>{% endif %}
                             </a>
-                            {% if option.active and current_sort_by | length > 1 %}
+                            {% if option.active %}
                                 <a href="{{ url_for('list_articles', page=1, sort_by=option.remove_sort_by, direction=option.remove_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profiles, search=current_search_term) }}"
                                    class="sort-remove"
-                                   title="Remove this sort key"><i class="fas fa-times"></i></a>
+                                   title="{{ 'Remove this sort key' if option.remove_sort_by else 'Clear the sort and go back to the default' }}"><i class="fas fa-times"></i></a>
                             {% endif %}
                         </span>
                     {% endfor %}

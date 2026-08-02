@@ -11,6 +11,11 @@
             <a href="{{ url_for('collections', **profile_params) }}" class="{{ 'active' if request.endpoint in ['collections', 'view_collection'] else '' }}">Collections</a>
         </nav>
         <div class="header-actions">
+            <select id="theme-select" class="theme-select" title="Color theme" aria-label="Color theme">
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+            </select>
             <a href="{{ url_for('add_manual_article') }}" class="btn btn-add-article" title="Add New Article">
                 <i class="fas fa-plus"></i> Add Article
             </a>

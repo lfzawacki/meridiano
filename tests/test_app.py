@@ -71,6 +71,86 @@ class TestArticlesRoute:
         response = client.get("/articles?start_date=2024-01-01&end_date=2024-01-31")
         assert response.status_code == 200
 
+    def test_articles_route_with_multiple_sort_keys(self, client):
+        """Test articles route accepts repeated sort_by/direction params."""
+        response = client.get("/articles?sort_by=impact_score&direction=desc&sort_by=published_date&direction=asc")
+        assert response.status_code == 200
+        # Both keys should be reflected in the sort controls links.
+        assert b"sort_by=impact_score&amp;sort_by=published_date" in response.data
+
+    def test_articles_route_sort_by_feed(self, client):
+        """Test articles route can sort by feed profile."""
+        response = client.get("/articles?sort_by=feed_profile&direction=asc")
+        assert response.status_code == 200
+
+    def test_articles_route_single_sort_key_can_be_removed(self, client):
+        """The 'x' is offered even when a single sort key is active."""
+        response = client.get("/articles?sort_by=impact_score&direction=desc")
+        assert response.status_code == 200
+        assert b"sort-remove" in response.data
+        assert b"Clear the sort and go back to the default" in response.data
+
+    def test_articles_route_without_sort_falls_back_to_default(self, client):
+        """Clearing the last sort key lands on the default sort."""
+        response = client.get("/articles")
+        assert response.status_code == 200
+        # Published Date is active again, so its 'x' resets rather than removes.
+        assert b"Clear the sort and go back to the default" in response.data
+
+
+class TestSortArgParsing:
+    """Tests for multi-key sort argument parsing."""
+
+    def test_parse_sort_args_defaults(self):
+        from meridiano.app import _parse_sort_args
+
+        assert _parse_sort_args([], []) == (["published_date"], ["desc"])
+
+    def test_parse_sort_args_pairs_directions_positionally(self):
+        from meridiano.app import _parse_sort_args
+
+        fields, directions = _parse_sort_args(["impact_score", "published_date"], ["desc", "asc"])
+        assert fields == ["impact_score", "published_date"]
+        assert directions == ["desc", "asc"]
+
+    def test_parse_sort_args_drops_unknown_and_duplicate_fields(self):
+        from meridiano.app import _parse_sort_args
+
+        fields, directions = _parse_sort_args(
+            ["impact_score", "bogus", "impact_score", "feed_profile"],
+            ["asc", "asc", "desc", "asc"],
+        )
+        assert fields == ["impact_score", "feed_profile"]
+        assert directions == ["asc", "asc"]
+
+    def test_parse_sort_args_defaults_missing_direction(self):
+        from meridiano.app import _parse_sort_args
+
+        fields, directions = _parse_sort_args(["impact_score", "published_date"], ["asc"])
+        assert directions == ["asc", "desc"]
+
+    def test_build_sort_options_toggles_and_appends(self):
+        from meridiano.app import _build_sort_options, _parse_sort_args
+
+        options = {opt["field"]: opt for opt in _build_sort_options(["impact_score"], ["desc"])}
+
+        active = options["impact_score"]
+        assert active["active"] is True
+        assert active["rank"] == 1
+        assert active["toggle_direction"] == ["asc"]
+        # Removing the only key leaves an empty chain, which parses back to the default.
+        assert active["remove_sort_by"] == []
+        assert active["remove_direction"] == []
+        assert _parse_sort_args(active["remove_sort_by"], active["remove_direction"]) == (
+            ["published_date"],
+            ["desc"],
+        )
+
+        inactive = options["published_date"]
+        assert inactive["active"] is False
+        assert inactive["toggle_sort_by"] == ["impact_score", "published_date"]
+        assert inactive["toggle_direction"] == ["desc", "desc"]
+
 
 class TestAddArticleRoute:
     """Tests for the add article route."""
@@ -213,7 +293,7 @@ class TestCollectionsRoutes:
         # Check we are back on the collections list page
         assert b"Collections" in response.data
         # Check for success flash message
-        assert b'Collection &#34;Ephemeral Collection&#34; has been deleted.' in response.data
+        assert b"Collection &#34;Ephemeral Collection&#34; has been deleted." in response.data
         # Check the link to the collection is no longer on the page.
         # We don't check for the name alone, as it appears in the flash message.
         assert f'<a href="/collection/{coll_id}"'.encode() not in response.data
@@ -248,7 +328,7 @@ class TestCollectionsRoutes:
         # Verify in DB
         with app.app_context():
             coll = get_collection_by_id(coll_id)
-            assert coll['archived'] is True
+            assert coll["archived"] is True
 
         # 3. Verify it shows up in "Archived Collections" section
         response = client.get("/collections")
@@ -263,7 +343,7 @@ class TestCollectionsRoutes:
         # Verify in DB
         with app.app_context():
             coll = get_collection_by_id(coll_id)
-            assert coll['archived'] is False
+            assert coll["archived"] is False
 
     def test_archive_nonexistent_collection(self, client):
         """Test attempting to archive a collection that doesn't exist."""

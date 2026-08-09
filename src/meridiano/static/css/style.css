@@ -725,6 +725,45 @@ blockquote {
     color: #343a40; /* Dark color for indicator */
 }
 
+/* Groups a sort key with its remove button */
+.sort-item {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 15px;
+}
+
+.sort-item .sort-link {
+    margin-left: 0;
+}
+
+/* Position of the key in the sort chain (1 = primary) */
+.sort-rank {
+    display: inline-block;
+    min-width: 16px;
+    margin-right: 4px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background-color: #0056b3;
+    color: #fff;
+    font-size: 0.75em;
+    text-align: center;
+}
+
+.sort-remove {
+    margin-left: 4px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    color: #6c757d;
+    font-size: 0.8em;
+    text-decoration: none;
+}
+
+.sort-remove:hover {
+    background-color: #e9ecef;
+    color: #dc3545;
+    text-decoration: none;
+}
+
 /* --- Feed Profile Filter & Badge Styling --- */
 .profile-filter {
     margin-bottom: 15px;
@@ -744,6 +783,68 @@ blockquote {
      font-size: 0.9em;
     color: #495057;
 }
+
+/* Multi-select feed profile chips */
+.profile-filter-label {
+    font-size: 0.9em;
+    color: #495057;
+    margin-right: 8px;
+    font-weight: 500;
+}
+.chip-group {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    vertical-align: middle;
+}
+.chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 999px;
+    background-color: #fff;
+    color: #495057;
+    font-size: 0.85em;
+    line-height: 1.3;
+    cursor: pointer;
+    user-select: none;
+    text-decoration: none;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.chip:hover {
+    border-color: #adb5bd;
+    background-color: #f1f3f5;
+}
+/* Hide the native checkbox; the whole chip is the control */
+.chip input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.chip.chip-active {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: #fff;
+    font-weight: 500;
+}
+.chip.chip-active:hover {
+    background-color: #0069d9;
+    border-color: #0062cc;
+}
+.chip.chip-clear {
+    background-color: transparent;
+    border-style: dashed;
+    color: #6c757d;
+}
+.chip.chip-clear:hover {
+    color: #dc3545;
+    border-color: #dc3545;
+    background-color: transparent;
+}
+
 
 .profile-link {
     text-decoration: none;
@@ -1194,3 +1295,35 @@ html[data-theme="dark"] .btn-add-article:hover {
     background-color: #51cf66;
     border-color: #51cf66;
 }
+
+/* Dark theme for the chips and sort controls */
+html[data-theme="dark"] .profile-filter-label { color: #c1c6cd; }
+html[data-theme="dark"] .chip {
+    background-color: #2b2f36;
+    border-color: #495057;
+    color: #c1c6cd;
+}
+html[data-theme="dark"] .chip:hover {
+    background-color: #343a40;
+    border-color: #6c757d;
+}
+html[data-theme="dark"] .chip.chip-active {
+    background-color: #1971c2;
+    border-color: #1971c2;
+    color: #fff;
+}
+html[data-theme="dark"] .chip.chip-active:hover {
+    background-color: #1864ab;
+    border-color: #1864ab;
+}
+html[data-theme="dark"] .chip.chip-clear {
+    background-color: transparent;
+    color: #9aa0a6;
+}
+html[data-theme="dark"] .chip.chip-clear:hover {
+    color: #ff6b6b;
+    border-color: #ff6b6b;
+}
+html[data-theme="dark"] .sort-rank { background-color: #4dabf7; color: #16181c; }
+html[data-theme="dark"] .sort-remove { color: #9aa0a6; }
+html[data-theme="dark"] .sort-remove:hover { background-color: #2b2f36; color: #ff6b6b; }

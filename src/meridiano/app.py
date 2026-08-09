@@ -21,6 +21,78 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "a_default_secret_key_for_develop
 app.jinja_env.filters["datetimeformat"] = format_datetime
 
 
+# Sortable article fields and their labels, in the order shown in the UI.
+ARTICLE_SORT_FIELDS = {
+    "published_date": "Published Date",
+    "impact_score": "Impact Score",
+    "feed_profile": "Feed",
+    "feed_source": "Source",
+}
+
+
+def _parse_sort_args(sort_by_args, direction_args):
+    """
+    Normalises the repeated sort_by/direction query params into two aligned lists.
+
+    Unknown and duplicated fields are dropped, directions are paired positionally
+    with the fields (defaulting to 'desc'), and an empty result falls back to the
+    default single-key sort.
+    """
+    fields, directions = [], []
+    for index, field in enumerate(sort_by_args):
+        if field not in ARTICLE_SORT_FIELDS or field in fields:
+            continue
+        field_direction = direction_args[index] if index < len(direction_args) else "desc"
+        fields.append(field)
+        directions.append(field_direction if field_direction in ("asc", "desc") else "desc")
+
+    if not fields:
+        return ["published_date"], ["desc"]
+    return fields, directions
+
+
+def _build_sort_options(sort_by, direction):
+    """
+    Builds the state of each sort button: whether it is part of the current sort,
+    its rank, and the sort_by/direction lists its links should produce.
+    """
+    options = []
+    for field, label in ARTICLE_SORT_FIELDS.items():
+        if field in sort_by:
+            index = sort_by.index(field)
+            toggled_direction = list(direction)
+            toggled_direction[index] = "asc" if direction[index] == "desc" else "desc"
+            options.append(
+                {
+                    "field": field,
+                    "label": label,
+                    "active": True,
+                    "rank": index + 1,
+                    "direction": direction[index],
+                    # Clicking an active field flips its direction, keeping its position.
+                    "toggle_sort_by": list(sort_by),
+                    "toggle_direction": toggled_direction,
+                    # The 'x' removes this field from the sort chain.
+                    "remove_sort_by": [f for i, f in enumerate(sort_by) if i != index],
+                    "remove_direction": [d for i, d in enumerate(direction) if i != index],
+                }
+            )
+        else:
+            options.append(
+                {
+                    "field": field,
+                    "label": label,
+                    "active": False,
+                    "rank": None,
+                    "direction": None,
+                    # Clicking an inactive field appends it as the next tie-breaker.
+                    "toggle_sort_by": list(sort_by) + [field],
+                    "toggle_direction": list(direction) + ["desc"],
+                }
+            )
+    return options
+
+
 def process_artciles_content(articles_data):
     return [
         {
@@ -81,11 +153,9 @@ def list_articles():
     page = max(1, page)
     per_page = getattr(config, "ARTICLES_PER_PAGE", 25)
 
-    # --- Sorting ---
-    sort_by = request.args.get("sort_by", "published_date")
-    direction = request.args.get("direction", "desc")
-    if direction not in ["asc", "desc"]:
-        direction = "desc"
+    # --- Sorting (multi-key: fields are applied in the order they appear) ---
+    sort_by, direction = _parse_sort_args(request.args.getlist("sort_by"), request.args.getlist("direction"))
+    sort_options = _build_sort_options(sort_by, direction)
 
     # --- Date Filtering ---
     start_date_str = request.args.get("start_date", "")
@@ -134,8 +204,8 @@ def list_articles():
             end_date = None
             print(f"Warning: Invalid end_date format '{request.args.get('end_date')}'")
 
-    # Feed Profile Filtering
-    current_feed_profile = request.args.get("feed_profile", "")  # Empty means 'All'
+    # Feed Profile Filtering (multi-select). Empty list means 'All'.
+    current_feed_profiles = [p for p in request.args.getlist("feed_profile") if p]
 
     # Search Term Filter
     current_search_term = request.args.get("search", "").strip()  # Get search term, trim whitespace
@@ -144,7 +214,7 @@ def list_articles():
     total_articles = database.get_total_article_count(
         start_date=start_date,
         end_date=end_date,
-        feed_profile=current_feed_profile if current_feed_profile else None,
+        feed_profile=current_feed_profiles if current_feed_profiles else None,
         search_term=current_search_term if current_search_term else None,
     )
 
@@ -156,7 +226,7 @@ def list_articles():
         direction=direction,
         start_date=start_date,
         end_date=end_date,
-        feed_profile=current_feed_profile if current_feed_profile else None,
+        feed_profile=current_feed_profiles if current_feed_profiles else None,
         search_term=current_search_term if current_search_term else None,
     )
 
@@ -186,11 +256,12 @@ def list_articles():
         total_articles=total_articles,  # Filtered total
         current_sort_by=sort_by,
         current_direction=direction,
+        sort_options=sort_options,
         current_start_date=start_date_str,
         current_end_date=end_date_str,
         current_preset=preset,
         available_profiles=available_profiles,
-        current_feed_profile=current_feed_profile,
+        current_feed_profiles=current_feed_profiles,
         current_search_term=current_search_term,
     )
 

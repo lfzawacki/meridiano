@@ -2,7 +2,18 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{title}} | Meridiano</title>
+    <script>
+        // Apply saved theme before render to avoid flash of light content
+        (function () {
+            var t = localStorage.getItem('theme');
+            if (!t || t === 'system') {
+                t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/font-awesome-all.min.css') }}">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='icons/icon.svg') }}">
     <script src="{{ url_for('static', filename='js/index.js') }}" defer></script>
 </head>

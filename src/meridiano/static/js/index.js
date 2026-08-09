@@ -68,7 +68,35 @@ async function toggleCollectionsMenu(event, menuId) {
     }
 }
 
+function applyTheme(pref) {
+    var resolved = pref;
+    if (!pref || pref === 'system') {
+        resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', resolved);
+}
+
+function initThemeSelector() {
+    var select = document.getElementById('theme-select');
+    var saved = localStorage.getItem('theme') || 'system';
+    if (select) {
+        select.value = saved;
+        select.addEventListener('change', function () {
+            localStorage.setItem('theme', select.value);
+            applyTheme(select.value);
+        });
+    }
+    // Follow OS changes while in "system" mode
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+        if ((localStorage.getItem('theme') || 'system') === 'system') {
+            applyTheme('system');
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    initThemeSelector();
+
     // Initialize date filters if dates are present
     const startDateEl = document.getElementById('start_date');
     const endDateEl = document.getElementById('end_date');

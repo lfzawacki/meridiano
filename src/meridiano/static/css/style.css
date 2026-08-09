@@ -110,6 +110,41 @@ hr {
     margin-top: 20px;
 }
 
+/* --- Briefing List Styling --- */
+.brief-list {
+    list-style-type: none;
+    padding-left: 0;
+    margin-top: 20px;
+}
+
+.brief-item {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f1f1f1;
+}
+.brief-item:last-child {
+    border-bottom: none;
+}
+
+.brief-link {
+    text-decoration: none;
+    color: #0056b3;
+    font-weight: 500;
+}
+.brief-link:hover {
+    text-decoration: underline;
+    color: #003d80;
+}
+
+.brief-meta {
+    font-size: 0.85em;
+    color: #6c757d;
+}
+
 /* --- Article List Styling --- */
 .article-list {
     list-style-type: none; /* Remove default bullets */
@@ -968,25 +1003,54 @@ blockquote {
 }
 
 /* --- Collections Dropdown Menu --- */
+.collections-control {
+    display: inline-block;
+    position: relative; /* Anchors the absolutely positioned menu */
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
 .collections-menu {
+    position: absolute;
+    right: 0;
+    z-index: 1000;
+    min-width: 220px;
+    padding: 8px;
+    background-color: #fff;
+    border: 1px solid #ddd;
     border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 .collections-menu-content {
     font-size: 0.9em; /* Smaller font */
+    color: #212529;
+}
+
+.collections-menu-content a {
+    color: #0056b3;
 }
 
 .collection-entry {
     display: flex;
     justify-content: space-between; /* Aligns name left, button right */
     align-items: center;
-    padding: 4px 0;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.collection-entry:hover {
+    background-color: #f1f3f5;
 }
 
 .collections-list-container {
     max-height: 150px; /* Limit height */
     overflow-y: auto; /* Add scrollbar if content overflows */
     margin-bottom: 8px; /* Space above footer */
+    scrollbar-width: thin;
+    scrollbar-color: #ced4da transparent;
 }
 
 .collections-menu-footer {
@@ -1016,7 +1080,7 @@ blockquote {
     cursor: pointer;
 }
 
-.collections-button :hover {
+.collections-button:hover {
     color: #0056b3;
 }
 
@@ -1025,6 +1089,211 @@ blockquote {
     font-size: 0.9em;
     color: #6c757d; /* Muted text color */
     margin-left: 5px;
+}
+
+/* --- Collections Page --- */
+.collection-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.collection-item-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.collection-item.archived {
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.collection-item.archived .article-link {
+    color: #6c757d;
+}
+
+.collection-item.archived .article-link:hover {
+    color: #495057;
+}
+
+.btn-archive,
+.btn-unarchive {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0.25rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.btn-archive {
+    color: #6c757d;
+}
+
+.btn-archive:hover {
+    color: #495057;
+}
+
+.btn-unarchive {
+    color: #28a745;
+}
+
+.btn-unarchive:hover {
+    color: #1e7e34;
+}
+
+/* --- Theme Selector --- */
+.theme-select {
+    padding: 5px 8px;
+    margin-right: 10px;
+    font-size: 0.85em;
+    color: #495057;
+    background-color: #fff;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* --- Dark Mode --- */
+html[data-theme="dark"] body {
+    background-color: #121417;
+    color: #e4e6eb;
+}
+
+html[data-theme="dark"] .container,
+html[data-theme="dark"] .main-header {
+    background-color: #1c1f24;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+}
+html[data-theme="dark"] .main-header {
+    border-bottom-color: #343a40;
+}
+
+html[data-theme="dark"] h1 { color: #f1f3f5; border-bottom-color: #343a40; }
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3 { color: #ced4da; }
+html[data-theme="dark"] hr { border-top-color: #343a40; }
+
+html[data-theme="dark"] .logo,
+html[data-theme="dark"] .main-nav a { color: #ced4da; }
+html[data-theme="dark"] .logo:hover,
+html[data-theme="dark"] .main-nav a:hover,
+html[data-theme="dark"] .main-nav a.active { color: #4dabf7; }
+
+html[data-theme="dark"] .timestamp,
+html[data-theme="dark"] .article-meta,
+html[data-theme="dark"] .form-text,
+html[data-theme="dark"] .sort-controls,
+html[data-theme="dark"] .profile-filter,
+html[data-theme="dark"] .collection-article-count { color: #9aa0a6; }
+
+html[data-theme="dark"] .article-item,
+html[data-theme="dark"] .brief-item { border-bottom-color: #2b2f36; }
+html[data-theme="dark"] .brief-link { color: #4dabf7; }
+html[data-theme="dark"] .brief-link:hover { color: #74c0fc; }
+html[data-theme="dark"] .brief-meta { color: #9aa0a6; }
+html[data-theme="dark"] .profile-link { color: #4dabf7; }
+html[data-theme="dark"] .profile-link:hover { background-color: #2b2f36; }
+html[data-theme="dark"] .profile-link.active { background-color: #495057; color: #f1f3f5; }
+html[data-theme="dark"] .brief-content a { color: #4dabf7; }
+html[data-theme="dark"] .brief-content a:hover { color: #74c0fc; }
+html[data-theme="dark"] .article-link,
+html[data-theme="dark"] .article-link-original,
+html[data-theme="dark"] .article-details dd a,
+html[data-theme="dark"] .collections-menu-footer a { color: #4dabf7; }
+html[data-theme="dark"] .article-link:hover,
+html[data-theme="dark"] .article-link-original:hover { color: #74c0fc; }
+
+html[data-theme="dark"] strong,
+html[data-theme="dark"] b,
+html[data-theme="dark"] .article-details dt,
+html[data-theme="dark"] .article-details dd { color: #e4e6eb; }
+
+html[data-theme="dark"] code,
+html[data-theme="dark"] pre { background-color: #2b2f36; color: #e4e6eb; }
+html[data-theme="dark"] blockquote { border-left-color: #495057; color: #adb5bd; }
+
+html[data-theme="dark"] .content-block,
+html[data-theme="dark"] .filter-sort-form,
+html[data-theme="dark"] .add-article-form,
+html[data-theme="dark"] .date-filter-content,
+html[data-theme="dark"] .search-filter {
+    background-color: #23272e;
+    border-color: #343a40;
+}
+
+html[data-theme="dark"] .form-control,
+html[data-theme="dark"] .theme-select,
+html[data-theme="dark"] .date-inputs input[type="date"],
+html[data-theme="dark"] .profile-filter.form-section select {
+    background-color: #2b2f36;
+    color: #e4e6eb;
+    border-color: #495057;
+}
+html[data-theme="dark"] .search-filter input[type="search"] { color: #e4e6eb; }
+
+html[data-theme="dark"] .article-details dd { border-left-color: #343a40; }
+html[data-theme="dark"] .article-image-container { background-color: #2b2f36; }
+
+html[data-theme="dark"] .page-link { color: #4dabf7; border-color: #343a40; }
+html[data-theme="dark"] .page-link:hover { background-color: #2b2f36; color: #74c0fc; }
+html[data-theme="dark"] .page-link.disabled { background-color: #23272e; color: #6c757d; }
+html[data-theme="dark"] .page-info { color: #ced4da; }
+
+html[data-theme="dark"] .pagination,
+html[data-theme="dark"] .sort-controls { border-top-color: #343a40; }
+html[data-theme="dark"] .form-row { border-bottom-color: #343a40; }
+html[data-theme="dark"] .collections-menu {
+    background-color: #23272e;
+    border-color: #343a40;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+}
+html[data-theme="dark"] .collections-menu-content { color: #e4e6eb; }
+html[data-theme="dark"] .collections-menu-content a { color: #4dabf7; }
+html[data-theme="dark"] .collections-menu-footer { border-top-color: #343a40; }
+html[data-theme="dark"] .collection-entry:hover { background-color: #2b2f36; }
+html[data-theme="dark"] .collections-list-container { scrollbar-color: #495057 transparent; }
+html[data-theme="dark"] .collections-button { color: #9aa0a6; }
+html[data-theme="dark"] .collections-button:hover { color: #4dabf7; }
+html[data-theme="dark"] .collections-menu .btn-filter {
+    background-color: #1971c2;
+    border-color: #1971c2;
+    color: #fff;
+}
+html[data-theme="dark"] .collections-menu .btn-filter:hover {
+    background-color: #1864ab;
+    border-color: #1864ab;
+}
+html[data-theme="dark"] .collections-menu .btn-clear {
+    color: #9aa0a6;
+    border-color: #495057;
+}
+html[data-theme="dark"] .collections-menu .btn-clear:hover {
+    background-color: #343a40;
+    color: #e4e6eb;
+}
+
+/* Collections page in dark mode */
+html[data-theme="dark"] .collection-item.archived { background-color: #22262c; }
+html[data-theme="dark"] .collection-item.archived .article-link { color: #868e96; }
+html[data-theme="dark"] .collection-item.archived .article-link:hover { color: #adb5bd; }
+html[data-theme="dark"] .btn-archive { color: #9aa0a6; }
+html[data-theme="dark"] .btn-archive:hover { color: #ced4da; }
+html[data-theme="dark"] .btn-unarchive { color: #51cf66; }
+html[data-theme="dark"] .btn-unarchive:hover { color: #8ce99a; }
+html[data-theme="dark"] .btn-add-article {
+    color: #51cf66;
+    background-color: #1e3a2b;
+    border-color: #2f6b48;
+}
+html[data-theme="dark"] .btn-add-article:visited { color: #51cf66; }
+html[data-theme="dark"] .btn-add-article:hover {
+    color: #0b1f14;
+    background-color: #51cf66;
+    border-color: #51cf66;
 }
 
 /* Dark theme for the chips and sort controls */

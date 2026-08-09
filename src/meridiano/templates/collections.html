@@ -26,7 +26,7 @@
         {% if collections %}
             <ul class="article-list">
                 {% for c in collections %}
-                    <li class="article-item" style="display: flex; justify-content: space-between; align-items: center;">
+                    <li class="article-item collection-item">
                         <div style="flex-grow: 1;">
                             <a href="{{ url_for('view_collection', collection_id=c['id']) }}" class="article-link">
                                 {{ c['name'] }}
@@ -36,9 +36,9 @@
                             </a>
                             <div class="form-text">Created: {{ c['created_at'] | datetimeformat }}</div>
                         </div>
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <div class="collection-item-actions">
                              <form action="{{ url_for('toggle_archive_collection', collection_id=c['id']) }}" method="POST" style="margin: 0;">
-                                <button type="submit" title="Archive Collection" class="btn btn-sm btn-secondary" style="border: none; background: transparent; color: #6c757d; padding: 0.25rem;">
+                                <button type="submit" title="Archive Collection" class="btn-archive">
                                     <i class="fas fa-archive"></i>
                                 </button>
                             </form>
@@ -58,11 +58,11 @@
         {% if archived_collections %}
             <hr style="margin-top: 3rem;">
             <h3>Archived Collections</h3>
-            <ul class="article-list" style="opacity: 0.7;">
+            <ul class="article-list">
                 {% for c in archived_collections %}
-                    <li class="article-item" style="display: flex; justify-content: space-between; align-items: center; background-color: #f8f9fa;">
+                    <li class="article-item collection-item archived">
                         <div style="flex-grow: 1;">
-                            <a href="{{ url_for('view_collection', collection_id=c['id']) }}" class="article-link" style="color: #6c757d;">
+                            <a href="{{ url_for('view_collection', collection_id=c['id']) }}" class="article-link">
                                 {{ c['name'] }}
                                 <span class="collection-article-count">
                                     ({{ c.article_count }} article{{ 's' if c.article_count != 1 else '' }})
@@ -70,9 +70,9 @@
                             </a>
                             <div class="form-text">Created: {{ c['created_at'] | datetimeformat }}</div>
                         </div>
-                         <div style="display: flex; gap: 0.5rem; align-items: center;">
+                         <div class="collection-item-actions">
                             <form action="{{ url_for('toggle_archive_collection', collection_id=c['id']) }}" method="POST" style="margin: 0;">
-                                <button type="submit" title="Un-archive Collection" class="btn btn-sm" style="border: none; background: transparent; color: #28a745; padding: 0.25rem;">
+                                <button type="submit" title="Un-archive Collection" class="btn-unarchive">
                                     <i class="fas fa-box-open"></i> Un-archive
                                 </button>
                             </form>

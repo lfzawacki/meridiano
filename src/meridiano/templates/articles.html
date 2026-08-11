@@ -55,7 +55,7 @@
                             <i class="fas fa-search"></i>
                         </button>
                         {% if current_search_term %}
-                            <a href="{{ url_for('list_articles', page=1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}"
+                            <a href="{{ url_for('list_articles', page=1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, per_page=per_page_param) }}"
                                class="btn btn-clear-search"
                                title="Clear Search"><i class="fas fa-times"></i></a>
                         {% endif %}
@@ -82,7 +82,7 @@
                                    name="end_date"
                                    value="{{ current_end_date }}">
                             <button type="submit" class="btn btn-filter"><i class="fas fa-filter"></i> Apply Filters</button>
-                            <a href="{{ url_for('list_articles', sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term) }}"
+                            <a href="{{ url_for('list_articles', sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term, per_page=per_page_param) }}"
                                class="btn btn-clear"><i class="fas fa-times-circle"></i> Clear Dates</a>
                         </div>
                         <div class="preset-buttons">
@@ -94,19 +94,27 @@
                                 "last_12m": "Last 12mo"
                             } %}
                             {% for key, label in presets.items() %}
-                                <a href="{{ url_for('list_articles', preset=key, sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term) }}"
+                                <a href="{{ url_for('list_articles', preset=key, sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term, per_page=per_page_param) }}"
                                    class="btn btn-preset {{ 'active' if current_preset == key else '' }}">{{ label }}</a>
                             {% endfor %}
                         </div>
                     </div>
                 </div>
                 <div class="sort-controls form-section">
+                    <span class="per-page-control">
+                        <label for="per_page">Per page:</label>
+                        <select name="per_page" id="per_page" onchange="this.form.submit()">
+                            {% for option in per_page_options %}
+                                <option value="{{ option }}" {% if option == per_page %}selected{% endif %}>{{ option }}</option>
+                            {% endfor %}
+                        </select>
+                    </span>
                     Sort by:
                     {% set sort_fields = {"published_date": "Published Date", "impact_score": "Impact Score"} %}
                     {% for field, label in sort_fields.items() %}
                         {% set is_active = (current_sort_by == field) %}
                         {% set next_direction = 'asc' if (is_active and current_direction == 'desc') else 'desc' %}
-                        <a href="{{ url_for('list_articles', page=1, sort_by=field, direction=next_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
+                        <a href="{{ url_for('list_articles', page=1, sort_by=field, direction=next_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term, per_page=per_page_param) }}"
                            class="sort-link {{ 'active' if is_active else '' }}">{{ label }}
                             {% if is_active %}<span class="sort-indicator">{{ '▲' if current_direction == 'asc' else '▼' }}</span>{% endif %}
                         </a>
@@ -121,14 +129,14 @@
             {% if total_pages > 1 %}
                 <div class="pagination">
                     {% if page > 1 %}
-                        <a href="{{ url_for('list_articles', page=page-1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
+                        <a href="{{ url_for('list_articles', page=page-1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term, per_page=per_page_param) }}"
                            class="page-link prev"><i class="fas fa-chevron-left"></i> Previous</a>
                     {% else %}
                         <span class="page-link disabled prev"><i class="fas fa-chevron-left"></i> Previous</span>
                     {% endif %}
                     <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
                     {% if page < total_pages %}
-                        <a href="{{ url_for('list_articles', page=page+1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
+                        <a href="{{ url_for('list_articles', page=page+1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term, per_page=per_page_param) }}"
                            class="page-link next">Next <i class="fas fa-chevron-right"></i></a>
                     {% else %}
                         <span class="page-link disabled next">Next <i class="fas fa-chevron-right"></i></span>

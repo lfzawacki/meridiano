@@ -21,6 +21,30 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "a_default_secret_key_for_develop
 app.jinja_env.filters["datetimeformat"] = format_datetime
 
 
+# Page sizes offered in the articles list dropdown.
+ARTICLES_PER_PAGE_CHOICES = (10, 15, 25, 50, 100)
+
+
+def _parse_per_page(per_page_arg):
+    """
+    Returns the page size to use, the choices to offer in the dropdown, and the
+    value links should carry.
+
+    The configured default is always part of the choices, even when it is not one
+    of the presets, and anything outside them falls back to that default. Links
+    only carry the page size when it differs from the default, keeping URLs tidy.
+    """
+    default = getattr(config, "ARTICLES_PER_PAGE", 25)
+    options = sorted({*ARTICLES_PER_PAGE_CHOICES, default})
+    try:
+        per_page = int(per_page_arg)
+    except (TypeError, ValueError):
+        per_page = default
+    if per_page not in options:
+        per_page = default
+    return per_page, options, (per_page if per_page != default else None)
+
+
 def process_artciles_content(articles_data):
     return [
         {
@@ -79,7 +103,7 @@ def list_articles():
     except ValueError:
         page = 1
     page = max(1, page)
-    per_page = getattr(config, "ARTICLES_PER_PAGE", 25)
+    per_page, per_page_options, per_page_param = _parse_per_page(request.args.get("per_page"))
 
     # --- Sorting ---
     sort_by = request.args.get("sort_by", "published_date")
@@ -183,6 +207,8 @@ def list_articles():
         page=page,
         total_pages=total_pages,
         per_page=per_page,
+        per_page_options=per_page_options,
+        per_page_param=per_page_param,
         total_articles=total_articles,  # Filtered total
         current_sort_by=sort_by,
         current_direction=direction,
@@ -373,9 +399,32 @@ def view_collection(collection_id):
     coll = database.get_collection_by_id(collection_id)
     if coll is None:
         abort(404)
-    articles = database.get_articles_for_collection(collection_id)
+
+    try:
+        page = int(request.args.get("page", 1))
+    except ValueError:
+        page = 1
+    page = max(1, page)
+    per_page, per_page_options, per_page_param = _parse_per_page(request.args.get("per_page"))
+
+    total_articles = database.get_article_count_for_collection(collection_id)
+    total_pages = math.ceil(total_articles / per_page) if total_articles > 0 else 0
+    if total_pages > 0 and page > total_pages:
+        page = total_pages
+
+    articles = database.get_articles_for_collection(collection_id, page=page, per_page=per_page)
     articles = process_artciles_content(articles)
-    return render_template("collection_detail.html", collection=coll, articles=articles)
+    return render_template(
+        "collection_detail.html",
+        collection=coll,
+        articles=articles,
+        page=page,
+        total_pages=total_pages,
+        per_page=per_page,
+        per_page_options=per_page_options,
+        per_page_param=per_page_param,
+        total_articles=total_articles,
+    )
 
 
 @app.route("/collection/<int:collection_id>/delete", methods=["POST"])

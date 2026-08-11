@@ -725,6 +725,34 @@ blockquote {
     color: #343a40; /* Dark color for indicator */
 }
 
+/* Page size selector, sitting at the right end of the list it belongs to */
+.per-page-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.sort-controls .per-page-control {
+    float: right;
+    font-size: 1em;
+}
+
+.per-page-control label {
+    color: #495057;
+}
+
+.per-page-control select {
+    padding: 3px 6px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background-color: #fff;
+    color: #495057;
+    font-size: 1em;
+    cursor: pointer;
+}
+
 /* --- Feed Profile Filter & Badge Styling --- */
 .profile-filter {
     margin-bottom: 15px;
@@ -1127,12 +1155,14 @@ html[data-theme="dark"] .search-filter {
 html[data-theme="dark"] .form-control,
 html[data-theme="dark"] .theme-select,
 html[data-theme="dark"] .date-inputs input[type="date"],
-html[data-theme="dark"] .profile-filter.form-section select {
+html[data-theme="dark"] .profile-filter.form-section select,
+html[data-theme="dark"] .per-page-control select {
     background-color: #2b2f36;
     color: #e4e6eb;
     border-color: #495057;
 }
 html[data-theme="dark"] .search-filter input[type="search"] { color: #e4e6eb; }
+html[data-theme="dark"] .per-page-control label { color: #9aa0a6; }
 
 html[data-theme="dark"] .article-details dd { border-left-color: #343a40; }
 html[data-theme="dark"] .article-image-container { background-color: #2b2f36; }

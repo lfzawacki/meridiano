@@ -61,6 +61,33 @@ class TestArticlesRoute:
         response = client.get("/articles?page=1")
         assert response.status_code == 200
 
+    def test_articles_route_shows_per_page_dropdown(self, client):
+        """The articles list offers a page size selector."""
+        response = client.get("/articles")
+        assert response.status_code == 200
+        assert b'name="per_page"' in response.data
+        assert b'<option value="50"' in response.data
+
+    def test_articles_route_honours_per_page(self, client):
+        """A valid per_page choice is applied and kept in the page links."""
+        response = client.get("/articles?per_page=50")
+        assert response.status_code == 200
+        assert b'<option value="50" selected' in response.data
+        assert b"per_page=50" in response.data
+
+    def test_articles_route_rejects_unknown_per_page(self, client):
+        """Values outside the offered choices fall back to the default."""
+        response = client.get("/articles?per_page=999")
+        assert response.status_code == 200
+        assert b'value="999"' not in response.data
+        assert b'<option value="15" selected' in response.data
+
+    def test_articles_route_ignores_non_numeric_per_page(self, client):
+        """A non-numeric per_page does not break the page."""
+        response = client.get("/articles?per_page=abc")
+        assert response.status_code == 200
+        assert b'<option value="15" selected' in response.data
+
     def test_articles_route_with_search(self, client):
         """Test articles route with search term."""
         response = client.get("/articles?search=test")
@@ -70,6 +97,47 @@ class TestArticlesRoute:
         """Test articles route with date filters."""
         response = client.get("/articles?start_date=2024-01-01&end_date=2024-01-31")
         assert response.status_code == 200
+
+
+class TestPerPageParsing:
+    """Tests for the articles page size argument."""
+
+    def test_parse_per_page_defaults(self):
+        from meridiano.app import _parse_per_page
+
+        per_page, options, per_page_param = _parse_per_page(None)
+        assert per_page == 15
+        assert per_page in options
+        # The default is implicit, so links do not need to carry it.
+        assert per_page_param is None
+
+    def test_parse_per_page_accepts_offered_choice(self):
+        from meridiano.app import _parse_per_page
+
+        assert _parse_per_page("100")[0] == 100
+        # A non-default size has to travel with the links.
+        assert _parse_per_page("100")[2] == 100
+
+    def test_parse_per_page_rejects_values_outside_the_choices(self):
+        from meridiano.app import _parse_per_page
+
+        assert _parse_per_page("7")[0] == 15
+        assert _parse_per_page("-10")[0] == 15
+        assert _parse_per_page("abc")[0] == 15
+
+    def test_parse_per_page_always_offers_the_configured_default(self):
+        from meridiano import app as app_module
+        from meridiano.app import _parse_per_page
+
+        original = app_module.config.ARTICLES_PER_PAGE
+        app_module.config.ARTICLES_PER_PAGE = 42
+        try:
+            per_page, options, _ = _parse_per_page(None)
+            assert per_page == 42
+            assert 42 in options
+            assert _parse_per_page("42")[0] == 42
+        finally:
+            app_module.config.ARTICLES_PER_PAGE = original
 
 
 class TestAddArticleRoute:

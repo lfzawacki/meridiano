@@ -33,7 +33,7 @@ Built for the curious mind wanting depth and relevance without the endless time 
 * **Impact Rating**: AI assigns a 1-10 impact score to articles based on their summary.
 * **Image Extraction**: Attempts to fetch representative images from RSS or article OG tags.
 * **FTS5 Search**: Fast and relevant full-text search across article titles and content.
-* **Web Interface**: Clean Flask-based UI to browse briefings and articles, with filtering (date, profile), sorting, pagination, and search.
+* **Web Interface**: Clean Flask-based UI to browse briefings and articles, with filtering (date, profile), sorting, pagination (selectable page size), and search.
 
 ## How It Works
 

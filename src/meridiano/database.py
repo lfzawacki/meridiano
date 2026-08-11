@@ -500,8 +500,15 @@ def remove_article_from_collection(collection_id: int, article_id: int) -> None:
             session.commit()
 
 
-def get_articles_for_collection(collection_id: int) -> List[Dict[str, Any]]:
-    """Return article dicts for all articles in a collection ordered by fetched_at desc."""
+def get_articles_for_collection(
+    collection_id: int, page: Optional[int] = None, per_page: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """
+    Return article dicts for a collection ordered by fetched_at desc.
+
+    Passing both page and per_page returns only that page; leaving them out
+    returns every article in the collection.
+    """
     with get_session() as session:
         stmt = (
             select(Article)
@@ -509,6 +516,8 @@ def get_articles_for_collection(collection_id: int) -> List[Dict[str, Any]]:
             .where(CollectionArticle.collection_id == collection_id)
             .order_by(desc(Article.fetched_at))
         )
+        if page is not None and per_page is not None:
+            stmt = stmt.offset((max(1, page) - 1) * per_page).limit(per_page)
         articles = session.exec(stmt).all()
         return [_article_to_dict(article) for article in articles]
 

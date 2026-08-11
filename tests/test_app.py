@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 # Import app after setting up test database
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 from meridiano.app import app
-from meridiano.database import add_article, create_collection, get_collection_by_id
+from meridiano.database import add_article, add_article_to_collection, create_collection, get_collection_by_id
 
 
 @pytest.fixture
@@ -254,6 +254,58 @@ class TestCollectionsRoutes:
         assert response.status_code == 200
         assert b"Collection name is required." in response.data
         assert b"Collections" in response.data  # Should be back on the collections list page
+
+    def test_view_collection_paginates_articles(self, client, sample_article_data):
+        """A collection larger than the page size is split into pages."""
+        with app.app_context():
+            coll_id = create_collection("Big Collection")
+            for index in range(12):
+                article_id = add_article(**{**sample_article_data, "url": f"https://example.com/a{index}"})
+                add_article_to_collection(coll_id, article_id)
+
+        response = client.get(f"/collection/{coll_id}?per_page=10")
+        assert response.status_code == 200
+        assert b"Showing articles 1 - 10 of 12 total." in response.data
+        assert b"Page 1 of 2" in response.data
+        assert f"/collection/{coll_id}?page=2&amp;per_page=10".encode() in response.data
+
+        response = client.get(f"/collection/{coll_id}?page=2&per_page=10")
+        assert response.status_code == 200
+        assert b"Showing articles 11 - 12 of 12 total." in response.data
+
+    def test_view_collection_shows_per_page_dropdown(self, client, sample_article_data):
+        """The collection page offers the same page size selector as the articles list."""
+        with app.app_context():
+            coll_id = create_collection("Collection With Articles")
+            article_id = add_article(**sample_article_data)
+            add_article_to_collection(coll_id, article_id)
+
+        response = client.get(f"/collection/{coll_id}?per_page=50")
+        assert response.status_code == 200
+        assert b'name="per_page"' in response.data
+        assert b'<option value="50" selected' in response.data
+
+    def test_view_collection_rejects_unknown_per_page(self, client, sample_article_data):
+        """Page sizes outside the offered choices fall back to the default."""
+        with app.app_context():
+            coll_id = create_collection("Collection Default Size")
+            article_id = add_article(**sample_article_data)
+            add_article_to_collection(coll_id, article_id)
+
+        response = client.get(f"/collection/{coll_id}?per_page=999")
+        assert response.status_code == 200
+        assert b'value="999"' not in response.data
+        assert b'<option value="15" selected' in response.data
+
+    def test_view_empty_collection_hides_pagination_controls(self, client):
+        """An empty collection shows neither the selector nor a summary line."""
+        with app.app_context():
+            coll_id = create_collection("Empty Collection")
+
+        response = client.get(f"/collection/{coll_id}")
+        assert response.status_code == 200
+        assert b'name="per_page"' not in response.data
+        assert b"No articles in this collection yet." in response.data
 
     def test_view_collection_not_found(self, client):
         """Test viewing a non-existent collection."""

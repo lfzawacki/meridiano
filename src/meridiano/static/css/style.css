@@ -753,6 +753,28 @@ blockquote {
     cursor: pointer;
 }
 
+/* Header row pairing a list heading with its page size selector */
+.list-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.list-controls h3 {
+    margin: 0;
+}
+
+.per-page-form {
+    margin: 0;
+}
+
+.list-summary {
+    color: #6c757d;
+    font-size: 0.9em;
+}
+
 /* --- Feed Profile Filter & Badge Styling --- */
 .profile-filter {
     margin-bottom: 15px;
@@ -1162,7 +1184,9 @@ html[data-theme="dark"] .per-page-control select {
     border-color: #495057;
 }
 html[data-theme="dark"] .search-filter input[type="search"] { color: #e4e6eb; }
-html[data-theme="dark"] .per-page-control label { color: #9aa0a6; }
+html[data-theme="dark"] .per-page-control,
+html[data-theme="dark"] .per-page-control label,
+html[data-theme="dark"] .list-summary { color: #9aa0a6; }
 
 html[data-theme="dark"] .article-details dd { border-left-color: #343a40; }
 html[data-theme="dark"] .article-image-container { background-color: #2b2f36; }

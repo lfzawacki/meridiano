@@ -399,9 +399,32 @@ def view_collection(collection_id):
     coll = database.get_collection_by_id(collection_id)
     if coll is None:
         abort(404)
-    articles = database.get_articles_for_collection(collection_id)
+
+    try:
+        page = int(request.args.get("page", 1))
+    except ValueError:
+        page = 1
+    page = max(1, page)
+    per_page, per_page_options, per_page_param = _parse_per_page(request.args.get("per_page"))
+
+    total_articles = database.get_article_count_for_collection(collection_id)
+    total_pages = math.ceil(total_articles / per_page) if total_articles > 0 else 0
+    if total_pages > 0 and page > total_pages:
+        page = total_pages
+
+    articles = database.get_articles_for_collection(collection_id, page=page, per_page=per_page)
     articles = process_artciles_content(articles)
-    return render_template("collection_detail.html", collection=coll, articles=articles)
+    return render_template(
+        "collection_detail.html",
+        collection=coll,
+        articles=articles,
+        page=page,
+        total_pages=total_pages,
+        per_page=per_page,
+        per_page_options=per_page_options,
+        per_page_param=per_page_param,
+        total_articles=total_articles,
+    )
 
 
 @app.route("/collection/<int:collection_id>/delete", methods=["POST"])

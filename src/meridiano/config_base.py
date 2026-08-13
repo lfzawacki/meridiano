@@ -58,6 +58,19 @@ Analyzed News Clusters (Most significant first):
 {cluster_analyses_text}
 """
 
+# Appended to the cluster analysis prompt (see run_briefing.generate_brief).
+# Kept outside PROMPT_CLUSTER_ANALYSIS so it still applies to the feed profiles
+# that override that template. The TOPIC line is stripped back off before the
+# analysis is used, so it only ever surfaces as a heading in the source list.
+PROMPT_CLUSTER_TOPIC_RULE = """
+Begin your response with a single line `TOPIC: <a 3-6 word title for this story>` followed by a blank line.
+"""
+
+# Cap on the source articles listed under a brief. Briefs generated before source
+# tracking existed fall back to contributing_article_ids, which can hold hundreds
+# of articles and makes the page enormous.
+BRIEF_MAX_SOURCES = 60
+
 # --- Processing Settings ---
 # How many hours back to look for articles when generating a brief
 BRIEFING_ARTICLE_LOOKBACK_HOURS = 24
@@ -67,6 +80,12 @@ BRIEFING_ARTICLE_LOOKBACK_HOURS = 24
 LLM_CHAT_MODEL = os.getenv("LLM_CHAT_MODEL", "deepseek/deepseek-chat")
 # Model for embeddings
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "together_ai/intfloat/multilingual-e5-large-instruct")
+
+# Completion budget per chat call. Reasoning models (deepseek-v4-flash and friends)
+# spend this budget on reasoning tokens *before* writing any answer, so a cap that is
+# merely small comes back as an empty string with finish_reason="length" rather than
+# as an error. The brief synthesis prompt is the longest one and needs the most room.
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "16384"))
 
 # Approximate number of clusters to aim for. Fine-tune based on results.
 # Alternatively, use algorithms like DBSCAN that don't require specifying k.

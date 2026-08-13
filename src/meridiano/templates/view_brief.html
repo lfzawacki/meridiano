@@ -12,6 +12,31 @@
         <div class="brief-content">
             {{ brief_content|safe }}
         </div>
+
+        {% if source_groups %}
+        <details class="brief-sources" {% if sources_grouped %}open{% endif %}>
+            <summary>
+                <i class="fas fa-link"></i> Sources
+                <span class="brief-sources-count">
+                    {%- if source_count < source_total %}
+                        ({{ source_count }} of {{ source_total }})
+                    {%- else %}
+                        ({{ source_count }})
+                    {%- endif %}
+                </span>
+            </summary>
+            {% for group in source_groups %}
+                {% if group.topic %}
+                    <h4 class="brief-sources-topic">{{ group.topic }}</h4>
+                {% endif %}
+                <ul class="article-list">
+                    {% for article in group.articles %}
+                        {% include '_article_item.html' %}
+                    {% endfor %}
+                </ul>
+            {% endfor %}
+        </details>
+        {% endif %}
     </div>
 </body>
 </html>

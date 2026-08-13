@@ -316,3 +316,175 @@ def test_empty_feed_profile(setup_integration):
             output = captured_output.getvalue()
             assert "Skipping scrape stage: No RSS_FEEDS found" in output
             assert "Skipping generate stage: No RSS_FEEDS found" in output
+
+
+def _completion(content, finish_reason="stop"):
+    """Builds a litellm-shaped reply."""
+    return {"choices": [{"message": {"content": content}, "finish_reason": finish_reason}]}
+
+
+class TestChatCompletionBudget:
+    """Reasoning models burn the completion budget before answering; see LLM_MAX_TOKENS."""
+
+    def test_uses_the_configured_budget(self, setup_integration):
+        """Test that the default budget comes from config rather than a hardcoded value."""
+        mock_completion = setup_integration["mock_completion"]
+        mock_completion.side_effect = None
+        mock_completion.return_value = _completion("An answer.")
+
+        with patch("meridiano.config_base.LLM_MAX_TOKENS", 4321):
+            assert run_briefing.call_deepseek_chat("Prompt") == "An answer."
+
+        assert mock_completion.call_args.kwargs["max_tokens"] == 4321
+
+    def test_retries_with_a_bigger_budget_when_reasoning_ate_it_all(self, setup_integration):
+        """Test that an empty finish_reason='length' reply is retried, not given up on."""
+        mock_completion = setup_integration["mock_completion"]
+        mock_completion.side_effect = [
+            _completion("", finish_reason="length"),
+            _completion("The real brief."),
+        ]
+
+        with patch("meridiano.config_base.LLM_MAX_TOKENS", 1000):
+            assert run_briefing.call_deepseek_chat("Prompt") == "The real brief."
+
+        budgets = [call.kwargs["max_tokens"] for call in mock_completion.call_args_list]
+        assert budgets == [1000, 1000 * run_briefing.EMPTY_RESPONSE_RETRY_FACTOR]
+
+    def test_gives_up_after_one_retry(self, setup_integration):
+        """Test that a persistently empty response ends the loop instead of spinning."""
+        mock_completion = setup_integration["mock_completion"]
+        mock_completion.side_effect = [
+            _completion("", finish_reason="length"),
+            _completion("", finish_reason="length"),
+        ]
+
+        assert run_briefing.call_deepseek_chat("Prompt") is None
+        assert mock_completion.call_count == 2
+
+    def test_empty_answer_that_is_not_truncated_is_not_retried(self, setup_integration):
+        """Test that a model which simply answered nothing is not billed for a retry."""
+        mock_completion = setup_integration["mock_completion"]
+        mock_completion.side_effect = None
+        mock_completion.return_value = _completion("", finish_reason="stop")
+
+        assert run_briefing.call_deepseek_chat("Prompt") is None
+        assert mock_completion.call_count == 1
+
+    def test_missing_content_key_is_treated_as_empty(self, setup_integration):
+        """Test that a reply carrying only reasoning_content does not raise."""
+        mock_completion = setup_integration["mock_completion"]
+        mock_completion.side_effect = None
+        mock_completion.return_value = {
+            "choices": [{"message": {"reasoning_content": "thinking..."}, "finish_reason": "stop"}]
+        }
+
+        assert run_briefing.call_deepseek_chat("Prompt") is None
+
+
+class TestSplitTopicLine:
+    """The TOPIC line is a source-list heading, not part of the brief text."""
+
+    def test_extracts_the_topic_and_drops_the_line(self):
+        """Test that the heading is lifted off and the analysis keeps the rest."""
+        topic, analysis = run_briefing.split_topic_line("TOPIC: Chips And Fabs\n\nThe real analysis.")
+
+        assert topic == "Chips And Fabs"
+        assert analysis == "The real analysis."
+
+    def test_tolerates_markdown_emphasis_and_quotes(self):
+        """Test that a model wrapping the line in ** or quotes still parses."""
+        topic, analysis = run_briefing.split_topic_line('**TOPIC:** "Cloud Outages"\n\nBody.')
+
+        assert topic == "Cloud Outages"
+        assert analysis == "Body."
+
+    def test_missing_topic_line_leaves_the_analysis_untouched(self):
+        """Test that a model ignoring the instruction costs nothing."""
+        topic, analysis = run_briefing.split_topic_line("Straight into the analysis.")
+
+        assert topic is None
+        assert analysis == "Straight into the analysis."
+
+
+class TestBuildArticleLinks:
+    """Only articles the model actually saw may be credited as sources."""
+
+    def test_numbers_clusters_and_carries_their_topic(self):
+        """Test that link rows record the cluster order and heading."""
+        clusters = [
+            {"topic": "First", "referenced_articles": [{"id": 1}, {"id": 2}]},
+            {"topic": "Second", "referenced_articles": [{"id": 3}]},
+        ]
+
+        links = run_briefing.build_article_links(clusters)
+
+        assert links == [
+            {"article_id": 1, "cluster_index": 0, "cluster_topic": "First"},
+            {"article_id": 2, "cluster_index": 0, "cluster_topic": "First"},
+            {"article_id": 3, "cluster_index": 1, "cluster_topic": "Second"},
+        ]
+
+    def test_an_article_in_two_clusters_is_listed_once(self):
+        """Test that the first cluster wins, so the source list has no duplicates."""
+        clusters = [
+            {"topic": "First", "referenced_articles": [{"id": 1}]},
+            {"topic": "Second", "referenced_articles": [{"id": 1}, {"id": 2}]},
+        ]
+
+        links = run_briefing.build_article_links(clusters)
+
+        assert [(link["article_id"], link["cluster_index"]) for link in links] == [(1, 0), (2, 1)]
+
+
+def _seed_processed_articles(count, feed_profile="test"):
+    """Adds articles that are already summarized and embedded, ready for briefing."""
+    article_ids = []
+    for i in range(1, count + 1):
+        article_id = database.add_article(
+            f"http://example.com/src{i}",
+            f"Source Article {i}",
+            datetime.now(),
+            f"Source {i}",
+            "Raw content.",
+            feed_profile,
+            None,
+        )
+        database.update_article_processing(article_id, f"Summary {i}.", [i * 0.1, i * 0.2, i * 0.3])
+        article_ids.append(article_id)
+    return article_ids
+
+
+def test_generate_brief_records_its_sources(setup_integration):
+    """A generated brief links the articles its clusters were built from."""
+    mock_completion = setup_integration["mock_completion"]
+    feed_profile = "test"
+    _seed_processed_articles(6, feed_profile)
+
+    def chat_side_effect(*args, **kwargs):
+        user_content = kwargs.get("messages", [])[-1]["content"]
+        if "core event or topic" in user_content:
+            content = "TOPIC: Seeded Topic\n\nCluster analysis body."
+        else:
+            content = "# Final Brief\n\n- Point one\n- Point two"
+        return {"choices": [{"message": {"content": content}}]}
+
+    mock_completion.side_effect = chat_side_effect
+
+    effective_config = MagicMock()
+    effective_config.PROMPT_CLUSTER_ANALYSIS = run_briefing.config.PROMPT_CLUSTER_ANALYSIS
+    effective_config.PROMPT_BRIEF_SYNTHESIS = run_briefing.config.PROMPT_BRIEF_SYNTHESIS
+    effective_config.PROMPT_CLUSTER_TOPIC_RULE = run_briefing.config.PROMPT_CLUSTER_TOPIC_RULE
+    effective_config.LLM_CHAT_MODEL = "test-model"
+
+    with patch("meridiano.config_base.MIN_ARTICLES_FOR_BRIEFING", 2):
+        run_briefing.generate_brief(feed_profile, effective_config)
+
+    brief = database.get_all_briefs_metadata(feed_profile=feed_profile)[0]
+    links = database.get_brief_article_links(brief["id"])
+
+    assert links, "the brief should record the articles it was built from"
+    # The TOPIC line is a heading only; it must not survive into the brief text.
+    assert "TOPIC:" not in database.get_brief_by_id(brief["id"])["brief_markdown"]
+    assert all(link["cluster_topic"] == "Seeded Topic" for link in links)
+    assert len(links) == len({link["article_id"] for link in links})

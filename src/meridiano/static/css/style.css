@@ -110,6 +110,38 @@ hr {
     margin-top: 20px;
 }
 
+/* --- Brief Sources --- */
+.brief-sources {
+    margin-top: 35px;
+    padding-top: 15px;
+    border-top: 2px solid #eee;
+}
+
+.brief-sources > summary {
+    cursor: pointer;
+    padding: 5px 0;
+    font-size: 1.17em;
+    font-weight: bold;
+}
+
+.brief-sources-count {
+    color: #6c757d;
+    font-size: 0.8em;
+    font-weight: normal;
+}
+
+.brief-sources-topic {
+    margin: 20px 0 0;
+    color: #6c757d;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.brief-sources .article-list {
+    margin-top: 10px;
+}
+
 /* --- Briefing List Styling --- */
 .brief-list {
     list-style-type: none;
@@ -1096,6 +1128,9 @@ html[data-theme="dark"] .brief-link:hover { color: #74c0fc; }
 html[data-theme="dark"] .brief-meta { color: #9aa0a6; }
 html[data-theme="dark"] .profile-link { color: #4dabf7; }
 html[data-theme="dark"] .profile-link:hover { background-color: #2b2f36; }
+html[data-theme="dark"] .brief-sources { border-top-color: #2b2f36; }
+html[data-theme="dark"] .brief-sources-count,
+html[data-theme="dark"] .brief-sources-topic { color: #9aa0a6; }
 html[data-theme="dark"] .profile-link.active { background-color: #495057; color: #f1f3f5; }
 html[data-theme="dark"] .brief-content a { color: #4dabf7; }
 html[data-theme="dark"] .brief-content a:hover { color: #74c0fc; }

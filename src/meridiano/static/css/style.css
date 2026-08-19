@@ -130,14 +130,6 @@ hr {
     font-weight: normal;
 }
 
-.brief-sources-topic {
-    margin: 20px 0 0;
-    color: #6c757d;
-    font-size: 0.9em;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
 .brief-sources .article-list {
     margin-top: 10px;
 }
@@ -1129,8 +1121,7 @@ html[data-theme="dark"] .brief-meta { color: #9aa0a6; }
 html[data-theme="dark"] .profile-link { color: #4dabf7; }
 html[data-theme="dark"] .profile-link:hover { background-color: #2b2f36; }
 html[data-theme="dark"] .brief-sources { border-top-color: #2b2f36; }
-html[data-theme="dark"] .brief-sources-count,
-html[data-theme="dark"] .brief-sources-topic { color: #9aa0a6; }
+html[data-theme="dark"] .brief-sources-count { color: #9aa0a6; }
 html[data-theme="dark"] .profile-link.active { background-color: #495057; color: #f1f3f5; }
 html[data-theme="dark"] .brief-content a { color: #4dabf7; }
 html[data-theme="dark"] .brief-content a:hover { color: #74c0fc; }

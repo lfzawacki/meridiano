@@ -33,30 +33,6 @@ def process_artciles_content(articles_data):
     ]
 
 
-def _group_sources(links, articles_by_id):
-    """Groups a brief's source articles by cluster, preserving link order.
-
-    Falls back to a single untitled group when the brief has no link rows, which
-    is the case for briefs generated before source tracking existed.
-    """
-    if not links:
-        return [{"topic": None, "articles": list(articles_by_id.values())}] if articles_by_id else []
-
-    groups = []
-    by_index = {}
-    for link in links:
-        article = articles_by_id.get(link["article_id"])
-        if not article:
-            continue
-        index = link["cluster_index"]
-        if index not in by_index:
-            by_index[index] = {"topic": link["cluster_topic"], "articles": []}
-            groups.append(by_index[index])
-        by_index[index]["articles"].append(article)
-
-    return [group for group in groups if group["articles"]]
-
-
 @app.route("/")
 def index():
     """Displays a list of briefings, filterable by feed profile."""
@@ -85,7 +61,6 @@ def view_brief(brief_id):
 
     links = database.get_brief_article_links(brief_id)
     if links:
-        # Already ordered by cluster, then by impact score within each cluster.
         source_ids = [link["article_id"] for link in links]
     else:
         # Briefs generated before source tracking existed only have the JSON id list.
@@ -95,14 +70,13 @@ def view_brief(brief_id):
             source_ids = []
 
     sources = database.get_articles_by_ids(source_ids)
-    if not links:
-        # No clusters to group by, so rank the whole list. Unscored articles sort last.
-        sources.sort(key=lambda a: (a["impact_score"] is None, -(a["impact_score"] or 0)))
+    # One flat list ranked by impact, ignoring which cluster an article came from.
+    # Unscored articles sort last.
+    sources.sort(key=lambda a: (a["impact_score"] is None, -(a["impact_score"] or 0)))
 
     # Count what actually exists, so the cap label never promises a deleted article.
     source_total = len(sources)
     source_articles = process_artciles_content(sources[: config.BRIEF_MAX_SOURCES])
-    articles_by_id = {article["id"]: article for article in source_articles}
 
     brief_content_html = Markup(markdown.markdown(brief_data["brief_markdown"], extensions=["fenced_code"]))
     generation_time = format_datetime(brief_data["generated_at"], "%Y-%m-%d %H:%M:%S UTC")
@@ -112,10 +86,9 @@ def view_brief(brief_id):
         brief_id=brief_data["id"],
         brief_content=brief_content_html,
         generation_time=generation_time,
-        source_groups=_group_sources(links, articles_by_id),
+        source_articles=source_articles,
         source_count=len(source_articles),
         source_total=source_total,
-        sources_grouped=bool(links),
     )
 
 

@@ -303,8 +303,8 @@ class TestViewBriefRoute:
         """Test that an unknown brief id is a 404."""
         assert client.get("/brief/9999").status_code == 404
 
-    def test_sources_are_grouped_by_cluster_topic(self, client, sample_article_data):
-        """Test that each cluster becomes its own titled group in the source list."""
+    def test_cluster_topics_are_not_rendered(self, client, sample_article_data):
+        """Test that clustered sources collapse into one list with no topic headings."""
         first, second = self._seed_articles(sample_article_data, 2)
         with app.app_context():
             brief_id = save_brief(
@@ -320,27 +320,37 @@ class TestViewBriefRoute:
         response = client.get(f"/brief/{brief_id}")
 
         assert response.status_code == 200
-        assert b"Chips And Fabs" in response.data
-        assert b"Cloud Outages" in response.data
+        assert b"Chips And Fabs" not in response.data
+        assert b"Cloud Outages" not in response.data
+        assert response.data.count(b'<ul class="article-list">') == 1
         assert b"Source Article 1" in response.data
         assert b"Source Article 2" in response.data
 
-    def test_untitled_cluster_renders_without_a_heading(self, client, sample_article_data):
-        """Test that a missing topic still lists its articles."""
-        (article_id,) = self._seed_articles(sample_article_data, 1)
+    def test_clustered_sources_are_ranked_by_impact_across_clusters(self, client, sample_article_data):
+        """Test that impact rank wins over cluster order in the flattened list."""
+        article_ids = self._seed_articles(sample_article_data, 3)
         with app.app_context():
+            from meridiano.models import Article, get_session
+
+            with get_session() as session:
+                for article_id, score in zip(article_ids, [2, 9, None]):
+                    session.get(Article, article_id).impact_score = score
+                session.commit()
             brief_id = save_brief(
                 "# Brief",
-                [article_id],
+                article_ids,
                 "test",
-                article_links=[{"article_id": article_id, "cluster_index": 0, "cluster_topic": None}],
+                article_links=[
+                    {"article_id": article_ids[0], "cluster_index": 0, "cluster_topic": "First"},
+                    {"article_id": article_ids[2], "cluster_index": 0, "cluster_topic": "First"},
+                    {"article_id": article_ids[1], "cluster_index": 1, "cluster_topic": "Second"},
+                ],
             )
 
-        response = client.get(f"/brief/{brief_id}")
+        html = client.get(f"/brief/{brief_id}").get_data(as_text=True)
 
-        assert response.status_code == 200
-        assert b"brief-sources-topic" not in response.data
-        assert b"Source Article 1" in response.data
+        positions = [html.index(f"Source Article {i}") for i in (2, 1, 3)]
+        assert positions == sorted(positions), "expected impact 9, then 2, then unscored"
 
     def test_legacy_brief_falls_back_to_contributing_ids(self, client, sample_article_data):
         """Test that a brief predating source tracking still lists its articles."""
@@ -384,8 +394,8 @@ class TestViewBriefRoute:
         assert b"(2 of 5)" in response.data
         assert b"Source Article 3" not in response.data
 
-    def test_grouped_sources_open_by_default(self, client, sample_article_data):
-        """Test that tracked sources are expanded while legacy ones stay collapsed."""
+    def test_sources_open_by_default(self, client, sample_article_data):
+        """Test that the source list is expanded for tracked and legacy briefs alike."""
         (article_id,) = self._seed_articles(sample_article_data, 1)
         with app.app_context():
             tracked = save_brief(
@@ -396,8 +406,8 @@ class TestViewBriefRoute:
             )
             legacy = save_brief("# Brief", [article_id], "test")
 
-        assert b"<details class=\"brief-sources\" open>" in client.get(f"/brief/{tracked}").data
-        assert b"<details class=\"brief-sources\" open>" not in client.get(f"/brief/{legacy}").data
+        for brief_id in (tracked, legacy):
+            assert b"<details class=\"brief-sources\" open>" in client.get(f"/brief/{brief_id}").data
 
     def test_brief_without_sources_omits_the_section(self, client):
         """Test that a brief with no surviving articles renders no Sources block."""
@@ -427,7 +437,7 @@ class TestViewBriefRoute:
 
         assert response.status_code == 200
         assert b"Source Article 1" in response.data
-        assert b"Gone" not in response.data
+        assert b"(1)" in response.data
 
 
 class TestHeaderActiveLinks:

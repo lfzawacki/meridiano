@@ -12,6 +12,26 @@
         <div class="brief-content">
             {{ brief_content|safe }}
         </div>
+
+        {% if source_articles %}
+        <details class="brief-sources" open>
+            <summary>
+                <i class="fas fa-link"></i> Sources
+                <span class="brief-sources-count">
+                    {%- if source_count < source_total %}
+                        ({{ source_count }} of {{ source_total }})
+                    {%- else %}
+                        ({{ source_count }})
+                    {%- endif %}
+                </span>
+            </summary>
+            <ul class="article-list">
+                {% for article in source_articles %}
+                    {% include '_article_item.html' %}
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
     </div>
 </body>
 </html>

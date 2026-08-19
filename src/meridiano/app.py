@@ -59,6 +59,25 @@ def view_brief(brief_id):
     if brief_data is None:
         abort(404)  # Return a 404 error if brief not found
 
+    links = database.get_brief_article_links(brief_id)
+    if links:
+        source_ids = [link["article_id"] for link in links]
+    else:
+        # Briefs generated before source tracking existed only have the JSON id list.
+        try:
+            source_ids = json.loads(brief_data["contributing_article_ids"] or "[]")
+        except (TypeError, ValueError):
+            source_ids = []
+
+    sources = database.get_articles_by_ids(source_ids)
+    # One flat list ranked by impact, ignoring which cluster an article came from.
+    # Unscored articles sort last.
+    sources.sort(key=lambda a: (a["impact_score"] is None, -(a["impact_score"] or 0)))
+
+    # Count what actually exists, so the cap label never promises a deleted article.
+    source_total = len(sources)
+    source_articles = process_artciles_content(sources[: config.BRIEF_MAX_SOURCES])
+
     brief_content_html = Markup(markdown.markdown(brief_data["brief_markdown"], extensions=["fenced_code"]))
     generation_time = format_datetime(brief_data["generated_at"], "%Y-%m-%d %H:%M:%S UTC")
 
@@ -67,6 +86,9 @@ def view_brief(brief_id):
         brief_id=brief_data["id"],
         brief_content=brief_content_html,
         generation_time=generation_time,
+        source_articles=source_articles,
+        source_count=len(source_articles),
+        source_total=source_total,
     )
 
 

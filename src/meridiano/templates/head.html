@@ -15,5 +15,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/font-awesome-all.min.css') }}">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='icons/icon.svg') }}">
+    {% if rss_profile %}
+    <link rel="alternate" type="application/rss+xml" title="Meridiano — {{ rss_profile }}" href="{{ url_for('profile_rss', profile=rss_profile) }}">
+    {% endif %}
     <script src="{{ url_for('static', filename='js/index.js') }}" defer></script>
 </head>

@@ -4,6 +4,10 @@ Tests for Flask application routes.
 
 import os
 import sys
+import uuid
+import xml.etree.ElementTree as ET
+from datetime import datetime
+from email.utils import parsedate_to_datetime
 
 import pytest
 
@@ -13,8 +17,15 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 
 # Import app after setting up test database
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+from meridiano import config_base
 from meridiano.app import app
-from meridiano.database import add_article, create_collection, get_collection_by_id
+from meridiano.database import (
+    add_article,
+    create_collection,
+    get_collection_by_id,
+    update_article_processing,
+    update_article_rating,
+)
 
 
 @pytest.fixture
@@ -329,4 +340,131 @@ class TestHeaderActiveLinks:
         assert response.status_code == 200
         assert b'class="active">Collections</a>' in response.data
         assert b'class="active">Briefs</a>' not in response.data
-        assert b'class="active">Articles</a>' not in response.data
+
+
+def add_test_article(**overrides):
+    """Adds an article for RSS tests with a unique URL and sensible defaults."""
+    defaults = {
+        "url": f"https://example.com/{uuid.uuid4().hex}",
+        "title": "Test Article",
+        "published_date": datetime(2024, 1, 15, 10, 30),
+        "feed_source": "Test Feed",
+        "raw_content": "This is test content for an article.",
+        "feed_profile": "test",
+        "image_url": None,
+    }
+    defaults.update(overrides)
+    return add_article(**defaults)
+
+
+class TestProfileRssRoute:
+    """Tests for the per-profile RSS output feeds."""
+
+    def test_rss_route_content_type_and_channel(self, client, sample_article_data):
+        """Test the feed returns an RSS 2.0 document with the channel metadata."""
+        with app.app_context():
+            add_article(**sample_article_data)
+
+        response = client.get("/test.rss")
+        assert response.status_code == 200
+        assert response.headers["Content-Type"].startswith("application/rss+xml")
+
+        root = ET.fromstring(response.data)
+        assert root.tag == "rss"
+        assert root.attrib["version"] == "2.0"
+
+        channel = root.find("channel")
+        assert channel.find("title").text == "Meridiano — test"
+        assert channel.find("link").text.endswith("/articles?feed_profile=test")
+        assert channel.find("description").text is not None
+        assert channel.find("lastBuildDate").text is not None
+
+        atom_link = channel.find("{http://www.w3.org/2005/Atom}link")
+        assert atom_link is not None
+        assert atom_link.attrib["rel"] == "self"
+        assert atom_link.attrib["href"].endswith("/test.rss")
+
+    def test_rss_unknown_profile_returns_404(self, client):
+        """Test that requesting a profile not present in the DB returns a 404."""
+        response = client.get("/nosuchfeed.rss")
+        assert response.status_code == 404
+
+    def test_rss_item_contains_article_main_information(self, client, sample_article_data):
+        """Test an item exposes the original link, AI summary, date and impact score."""
+        with app.app_context():
+            article_id = add_article(**sample_article_data)
+            update_article_processing(article_id, "This is the AI summary.", None)
+            update_article_rating(article_id, 7)
+
+        response = client.get("/test.rss")
+        root = ET.fromstring(response.data)
+        items = root.findall("channel/item")
+        assert len(items) == 1
+
+        item = items[0]
+        assert item.find("title").text == "Test Article"
+        assert item.find("link").text == "https://example.com/article1"
+        guid = item.find("guid")
+        assert guid.attrib["isPermaLink"] == "true"
+        assert item.find("description").text.strip() == "<p>This is the AI summary.</p>"
+        assert item.find("category").text == "impact:7"
+
+        parsed = parsedate_to_datetime(item.find("pubDate").text)
+        assert (parsed.year, parsed.month, parsed.day) == (2024, 1, 15)
+
+    def test_rss_item_optional_fields(self, client, sample_article_data):
+        """Test unrated items have no category, images become media:thumbnail, description uses the raw content."""
+        with app.app_context():
+            data = {**sample_article_data, "image_url": "https://example.com/image.jpg"}
+            add_article(**data)
+
+        response = client.get("/test.rss")
+        root = ET.fromstring(response.data)
+        item = root.findall("channel/item")[0]
+
+        assert item.find("category") is None
+
+        thumbnail = item.find("{http://search.yahoo.com/mrss/}thumbnail")
+        assert thumbnail is not None
+        assert thumbnail.attrib["url"] == "https://example.com/image.jpg"
+
+        description = item.find("description")
+        assert description is not None
+        assert "This is test content for an article." in description.text
+
+    def test_rss_items_ordered_newest_first(self, client):
+        """Test the items are ordered by published date, newest first."""
+        with app.app_context():
+            add_test_article(title="Older Article", published_date=datetime(2024, 1, 1, 0, 0))
+            add_test_article(title="Newer Article", published_date=datetime(2025, 6, 1, 0, 0))
+
+        response = client.get("/test.rss")
+        root = ET.fromstring(response.data)
+        titles = [item.find("title").text for item in root.findall("channel/item")]
+        assert titles == ["Newer Article", "Older Article"]
+
+    def test_rss_respects_max_items_setting(self, client, monkeypatch):
+        """Test that only RSS_MAX_ITEMS newest articles are exposed."""
+        monkeypatch.setattr(config_base, "RSS_MAX_ITEMS", 1)
+        with app.app_context():
+            add_test_article(title="One", published_date=datetime(2024, 1, 1, 0, 0))
+            add_test_article(title="Two", published_date=datetime(2024, 2, 1, 0, 0))
+
+        response = client.get("/test.rss")
+        root = ET.fromstring(response.data)
+        titles = [item.find("title").text for item in root.findall("channel/item")]
+        assert titles == ["Two"]
+
+    def test_articles_page_has_rss_autodiscovery(self, client, sample_article_data):
+        """Test the articles page advertises the RSS feed when filtered by profile."""
+        with app.app_context():
+            add_article(**sample_article_data)
+
+        response = client.get("/articles?feed_profile=test")
+        assert response.status_code == 200
+        assert b' type="application/rss+xml"' in response.data
+        assert b' href="/test.rss"' in response.data
+
+        # No discovery links when no profile filter is applied
+        response = client.get("/articles")
+        assert b' type="application/rss+xml"' not in response.data

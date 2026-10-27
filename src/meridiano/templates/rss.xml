@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+    <channel>
+        <title>Meridiano — {{ feed_profile }}</title>
+        <link>{{ channel_url }}</link>
+        <description>AI-analyzed articles for the '{{ feed_profile }}' profile from Meridiano.</description>
+        <language>en-us</language>
+        <lastBuildDate>{{ last_build_date }}</lastBuildDate>
+        <atom:link href="{{ self_url }}" rel="self" type="application/rss+xml"/>
+        <ttl>30</ttl>
+        {% for item in items %}
+        <item>
+            <title>{{ item.title }}</title>
+            <link>{{ item.link }}</link>
+            <guid isPermaLink="true">{{ item.link }}</guid>
+            <pubDate>{{ item.pub_date }}</pubDate>
+            {% if item.impact_score is not none %}
+            <category>impact:{{ item.impact_score }}</category>
+            {% endif %}
+            {% if item.image_url %}
+            <media:thumbnail url="{{ item.image_url }}"/>
+            {% endif %}
+            {% if item.description %}
+            <description>{{ item.description }}</description>
+            {% endif %}
+        </item>
+        {% endfor %}
+    </channel>
+</rss>

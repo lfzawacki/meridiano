@@ -80,6 +80,13 @@ ARTICLES_PER_PAGE = 15
 MANUALLY_ADDED_PROFILE_NAME = "manual"
 DEFAULT_FEED_PROFILE = "default"
 
+# --- RSS output feeds (/<profile>.rss) ---
+# How many articles each profile's RSS feed exposes (newest first).
+RSS_MAX_ITEMS = int(os.getenv("RSS_MAX_ITEMS", 50))
+# Absolute base URL of this instance, used for the feed's self/channel links.
+# Unset: derived from the incoming request's Host header.
+RSS_BASE_URL = os.getenv("RSS_BASE_URL") or None
+
 # --- Other ---
 DATABASE_FILE = "meridian.db"  # Keep for backward compatibility
 

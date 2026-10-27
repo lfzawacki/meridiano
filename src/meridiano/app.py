@@ -3,10 +3,11 @@
 import json
 import math
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from email.utils import format_datetime as format_rfc822_date
 
 import markdown
-from flask import Flask, abort, flash, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, abort, flash, jsonify, redirect, render_template, request, url_for
 from markupsafe import Markup
 from sqlmodel import select
 
@@ -31,6 +32,41 @@ def process_artciles_content(articles_data):
         }
         for article in articles_data
     ]
+
+
+def rss_datetime(value):
+    """Coerces a stored datetime (or ISO string) into an RFC-822 formatted pubDate, treating naive values as UTC."""
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value)
+        except ValueError:
+            value = None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = datetime.now(timezone.utc)
+    return format_rfc822_date(value)
+
+
+def rss_item_for_article(article):
+    """Builds an RSS item dict with the article's main information for feed readers."""
+    published = article.get("published_date") or article.get("fetched_at")
+
+    summary = article.get("processed_content")
+    if summary:
+        description = markdown.markdown(summary, extensions=["fenced_code"])
+    else:
+        description = article.get("raw_content") or ""
+
+    return {
+        "title": article.get("title") or article.get("url") or "Untitled",
+        "link": article["url"],
+        "pub_date": rss_datetime(published),
+        "description": description,
+        "impact_score": article.get("impact_score"),
+        "image_url": article.get("image_url"),
+    }
 
 
 @app.route("/")
@@ -192,6 +228,7 @@ def list_articles():
         available_profiles=available_profiles,
         current_feed_profile=current_feed_profile,
         current_search_term=current_search_term,
+        rss_profile=current_feed_profile or None,
     )
 
 
@@ -242,6 +279,33 @@ def view_article(article_id):
         embedding_status=embedding_status,
         collections=collections,
     )
+
+
+@app.route("/<profile>.rss")
+def profile_rss(profile):
+    """Serves an RSS 2.0 feed with the newest articles of a feed profile present in the database."""
+    if profile not in database.get_distinct_feed_profiles(table="articles"):
+        abort(404)
+
+    articles = database.get_latest_profile_articles(profile, limit=getattr(config, "RSS_MAX_ITEMS", 50))
+    items = [rss_item_for_article(article) for article in articles]
+
+    base_url = (getattr(config, "RSS_BASE_URL", None) or request.url_root).rstrip("/")
+    self_url = f"{base_url}{url_for('profile_rss', profile=profile)}"
+    channel_url = f"{base_url}{url_for('list_articles', feed_profile=profile)}"
+    last_build_date = items[0]["pub_date"] if items else rss_datetime(None)
+
+    xml = render_template(
+        "rss.xml",
+        feed_profile=profile,
+        channel_url=channel_url,
+        self_url=self_url,
+        last_build_date=last_build_date,
+        items=items,
+    )
+    response = Response(xml)
+    response.headers["Content-Type"] = "application/rss+xml; charset=utf-8"
+    return response
 
 
 @app.route("/add_article", methods=["GET", "POST"])

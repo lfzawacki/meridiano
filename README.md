@@ -34,6 +34,7 @@ Built for the curious mind wanting depth and relevance without the endless time 
 * **Image Extraction**: Attempts to fetch representative images from RSS or article OG tags.
 * **FTS5 Search**: Fast and relevant full-text search across article titles and content.
 * **Web Interface**: Clean Flask-based UI to browse briefings and articles, with filtering (date, profile), sorting, pagination, and search.
+* **RSS Output**: Every feed profile in the database is also served as an RSS 2.0 feed at `/<profile>.rss`, so AI-processed articles can be consumed with any RSS reader.
 
 ## How It Works
 
@@ -179,6 +180,26 @@ Use the command line to run different stages for specific feed profiles.
     # pip install gunicorn
     gunicorn --bind 0.0.0.0:5000 app:app
     ```
+
+**3. RSS Feeds**
+
+Every feed profile present in the database (e.g. `default`, `tech`, `brasil`) is served as an RSS 2.0 feed:
+
+```text
+http://localhost:5000/tech.rss
+http://localhost:5000/brasil.rss
+```
+
+Point any RSS reader at `http://localhost:5000/<profile>.rss` to follow the newest articles of that profile. Each
+item contains the article's original link, its AI summary as the description, the publication date and, when rated,
+the impact score as a category tag (e.g. `impact:7`). The `/articles?feed_profile=<profile>` page also advertises the
+feed via RSS auto-discovery.
+
+Settings (in `config_base.py`, overridable as environment variables):
+
+* `RSS_MAX_ITEMS` — how many articles each feed exposes, newest first (default: 50).
+* `RSS_BASE_URL` — absolute base URL used in the feed's self/channel links (default: derived from the incoming
+  request's `Host` header; set it when running behind a proxy that does not forward one).
 
 ## Running on Docker
 

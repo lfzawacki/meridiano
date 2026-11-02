@@ -9,6 +9,11 @@
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h2>Collection: {{ collection['name'] }}</h2>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
+                {% if articles %}
+                    <a href="{{ url_for('read_collection', collection_id=collection['id']) }}" title="Read full articles" class="reader-open-button">
+                        <i class="fas fa-book-open"></i> Read
+                    </a>
+                {% endif %}
                 <form action="{{ url_for('toggle_archive_collection', collection_id=collection['id']) }}" method="POST" style="margin: 0;">
                     {% if collection.get('archived') %}
                         <button type="submit" title="Un-archive Collection" class="btn btn-sm" style="border: none; background: transparent; color: #28a745; font-size: 1.2rem;">

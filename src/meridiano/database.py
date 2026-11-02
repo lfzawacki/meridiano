@@ -6,7 +6,7 @@ This replaces the SQLite-based database.py with modern SQLModel operations.
 import json
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -94,6 +94,8 @@ def _article_to_dict(article: Article) -> Dict[str, Any]:
             "impact_score",
             "image_url",
             "feed_profile",
+            "full_content_html",
+            "full_content_fetched_at",
         }
     )
 
@@ -241,8 +243,9 @@ def add_article(
     raw_content: str,
     feed_profile: str,
     image_url: Optional[str] = None,
+    full_content_html: Optional[str] = None,
 ) -> Optional[int]:
-    """Adds a new article with optional image URL."""
+    """Adds a new article with optional image URL and full-article HTML."""
     with get_session() as session:
         try:
             # Ensure Postgres sequence is in sync to avoid duplicate primary key errors
@@ -270,6 +273,8 @@ def add_article(
                 image_url=image_url,
                 feed_profile=feed_profile,
                 fetched_at=datetime.now(),
+                full_content_html=full_content_html,
+                full_content_fetched_at=datetime.now() if full_content_html else None,
             )
             session.add(article)
             session.commit()
@@ -313,6 +318,103 @@ def update_article_processing(article_id: int, processed_content: str, embedding
             article.processed_at = datetime.now()
             session.add(article)
             session.commit()
+
+
+def get_articles_missing_full_content(
+    feed_profile: Optional[str] = None,
+    limit: int = 1000,
+    include_attempted: bool = False,
+    include_stored: bool = False,
+) -> List[Dict[str, Any]]:
+    """Articles without full-article HTML, newest first.
+
+    By default an article whose fetch was already attempted (and failed) is
+    skipped; ``include_attempted`` retries those too, and ``include_stored``
+    returns every article so stored HTML can be fetched again. ``feed_profile``
+    None covers every profile.
+    """
+    with get_session() as session:
+        statement = select(Article.id, Article.url, Article.title)
+        if not include_stored:
+            statement = statement.where(Article.full_content_html.is_(None))
+            if not include_attempted:
+                statement = statement.where(Article.full_content_fetched_at.is_(None))
+        if feed_profile:
+            statement = statement.where(Article.feed_profile == feed_profile)
+        statement = statement.order_by(desc(Article.fetched_at)).limit(limit)
+        return [{"id": row.id, "url": row.url, "title": row.title} for row in session.exec(statement).all()]
+
+
+def update_article_full_content(
+    article_id: int, full_content_html: Optional[str], raw_content: Optional[str] = None
+) -> bool:
+    """Stores an article's full HTML and stamps the attempt. Returns False if it is gone.
+
+    A failed fetch (None) never wipes HTML that an earlier fetch stored. A freshly
+    fetched ``raw_content`` only replaces stored text that has broken accents
+    ("Ã©"), so summaries keep matching the text they were made from otherwise.
+    """
+    with get_session() as session:
+        article = session.get(Article, article_id)
+        if not article:
+            return False
+        if full_content_html:
+            article.full_content_html = full_content_html
+        stored = article.raw_content or ""
+        if raw_content and ("Ã" in stored or "Â" in stored):
+            article.raw_content = raw_content
+        article.full_content_fetched_at = datetime.now()
+        session.add(article)
+        session.commit()
+        return True
+
+
+MOJIBAKE_FIELDS = ("title", "raw_content", "full_content_html")
+
+
+def repair_article_encoding(
+    repair: Callable[..., Optional[str]],
+    build_vocabulary: Callable[[Any], Any],
+    feed_profile: Optional[str] = None,
+    dry_run: bool = False,
+) -> Dict[str, int]:
+    """Repairs mojibake in the stored text of articles.
+
+    First pass: ``build_vocabulary`` reads every article's text (already
+    repaired where possible) so lost uppercase accents can be resolved against
+    real words. Second pass: ``repair(text, vocabulary)`` is applied to the
+    suspicious articles. Returns {"changed": n, "suspicious": n, "remaining": n},
+    where remaining counts articles still holding a marker after the repair.
+    """
+    suspicious = or_(*[getattr(Article, f).like(f"%{m}%") for f in MOJIBAKE_FIELDS for m in ("Ã", "Â")])
+    profile_filter = (Article.feed_profile == feed_profile) if feed_profile else True
+
+    with get_session() as session:
+        all_text = select(Article.raw_content).execution_options(yield_per=500)
+        vocabulary = build_vocabulary(repair(text) for (text,) in session.execute(all_text))
+
+        statement = select(Article).where(suspicious).where(profile_filter)
+        articles = session.exec(statement).all()
+        changed = remaining = 0
+        for article in articles:
+            dirty = False
+            for field in MOJIBAKE_FIELDS:
+                value = getattr(article, field)
+                fixed = repair(value, vocabulary)
+                if fixed != value:
+                    dirty = True
+                    if not dry_run:
+                        setattr(article, field, fixed)
+                if fixed and ("Ã" in fixed or "Â" in fixed):
+                    remaining += 1
+                    break
+            if dirty:
+                changed += 1
+                if not dry_run:
+                    session.add(article)
+        if not dry_run:
+            session.commit()
+    return {"changed": changed, "suspicious": len(articles), "remaining": remaining}
 
 
 def get_articles_for_briefing(lookback_hours: int, feed_profile: str) -> List[Dict[str, Any]]:
@@ -511,6 +613,22 @@ def get_articles_for_collection(collection_id: int) -> List[Dict[str, Any]]:
         )
         articles = session.exec(stmt).all()
         return [_article_to_dict(article) for article in articles]
+
+
+def get_collection_article_index(collection_id: int) -> List[Dict[str, Any]]:
+    """Ids and titles of a collection's articles, in the collection list order.
+
+    Lightweight on purpose: the reader view needs the whole sequence for its
+    navigation without loading every article body.
+    """
+    with get_session() as session:
+        stmt = (
+            select(Article.id, Article.title, Article.full_content_html.is_not(None).label("has_full"))
+            .join(CollectionArticle, Article.id == CollectionArticle.article_id)
+            .where(CollectionArticle.collection_id == collection_id)
+            .order_by(desc(Article.fetched_at))
+        )
+        return [{"id": r.id, "title": r.title, "has_full": bool(r.has_full)} for r in session.exec(stmt).all()]
 
 
 def get_article_count_for_collection(collection_id: int) -> int:

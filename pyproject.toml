@@ -9,6 +9,7 @@ dependencies = [
     "beautifulsoup4>=4.14.3",
     "feedparser>=6.0.12",
     "flask>=3.1.2",
+    "ftfy>=6.3",
     "gunicorn>=23.0.0",
     "litellm>=1.80.9",
     "lxml>=6.0.2",

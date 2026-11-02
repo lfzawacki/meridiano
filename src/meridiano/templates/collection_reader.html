@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+{% set title = "Reading: %s" % (article.title or 'Untitled') %}
+{% include 'head.html' %}
+<body>
+    <div class="container reader">
+        {% include 'header.html' %}
+
+        <div class="reader-toolbar">
+            <a href="{{ url_for('view_collection', collection_id=collection['id']) }}" class="reader-back">
+                <i class="fas fa-arrow-left"></i> {{ collection['name'] }}
+            </a>
+            <form method="GET" class="reader-jump" onsubmit="return false;">
+                <label for="reader-jump-select" class="visually-hidden">Jump to article</label>
+                <select id="reader-jump-select"
+                        onchange="window.location = this.value;">
+                    {% for entry in index %}
+                        <option value="{{ url_for('read_collection', collection_id=collection['id'], article_id=entry.id) }}"
+                                {% if loop.index0 == position %}selected{% endif %}>
+                            {{ loop.index }}. {{ (entry.title or 'Untitled') | truncate(70) }}{% if not entry.has_full %} (no full text){% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+            <span class="reader-position">{{ position + 1 }} / {{ index | length }}</span>
+        </div>
+
+        <article class="reader-article">
+            <header class="reader-article-header">
+                <span class="profile-badge list-badge">{{ article.feed_profile }}</span>
+                {% if article.impact_score is not none %}
+                    <span class="impact-score score-{{ article.impact_score }}" title="Impact Score: {{ article.impact_score }}/10">{{ article.impact_score }}</span>
+                {% endif %}
+                <h2 class="reader-title">{{ article.title or 'Untitled' }}</h2>
+                <div class="article-meta">
+                    {{ article.feed_source or 'Unknown Source' }} / {{ article.published_date | datetimeformat }}
+                    &middot; <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">Original <i class="fas fa-external-link"></i></a>
+                    &middot; <a href="{{ url_for('view_article', article_id=article.id) }}">Details</a>
+                </div>
+            </header>
+
+            {% if article.full_content_html %}
+                <div class="full-article-content">{{ article.full_content_html | safe }}</div>
+            {% else %}
+                {% if article.image_url %}
+                    <img src="{{ article.image_url }}" alt="" class="reader-lead-image" referrerpolicy="no-referrer"
+                         onerror="this.style.display='none';">
+                {% endif %}
+                <div class="reader-fallback-note">
+                    <em>
+                        {% if article.full_content_fetched_at %}
+                            The full article could not be extracted. Showing the extracted text instead.
+                        {% else %}
+                            The full article has not been fetched yet. Showing the extracted text instead.
+                        {% endif %}
+                    </em>
+                    <form action="{{ url_for('fetch_article_full_content', article_id=article.id) }}" method="POST" class="full-article-fetch-form">
+                        <input type="hidden" name="next" value="{{ request.path }}">
+                        <button type="submit" class="btn btn-sm"><i class="fas fa-download"></i> Fetch full article</button>
+                    </form>
+                </div>
+                {% if article.raw_content %}
+                    <div class="full-article-content reader-plain-text">{{ article.raw_content }}</div>
+                {% elif article.processed_content_html %}
+                    <div class="full-article-content">{{ article.processed_content_html | safe }}</div>
+                {% endif %}
+            {% endif %}
+        </article>
+
+        <nav class="pagination reader-nav">
+            {% if prev_id %}
+                <a href="{{ url_for('read_collection', collection_id=collection['id'], article_id=prev_id) }}" class="page-link prev" id="reader-prev">
+                    <i class="fas fa-chevron-left"></i> Previous</a>
+            {% else %}
+                <span class="page-link disabled prev"><i class="fas fa-chevron-left"></i> Previous</span>
+            {% endif %}
+            <span class="page-info">{{ position + 1 }} of {{ index | length }}</span>
+            {% if next_id %}
+                <a href="{{ url_for('read_collection', collection_id=collection['id'], article_id=next_id) }}" class="page-link next" id="reader-next">
+                    Next <i class="fas fa-chevron-right"></i></a>
+            {% else %}
+                <span class="page-link disabled next">Next <i class="fas fa-chevron-right"></i></span>
+            {% endif %}
+        </nav>
+    </div>
+    <script>
+        // Arrow keys move between articles, unless the user is typing somewhere.
+        document.addEventListener('keydown', function (event) {
+            var tag = (event.target.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select' || event.altKey || event.ctrlKey || event.metaKey) {
+                return;
+            }
+            var link = document.getElementById(event.key === 'ArrowLeft' ? 'reader-prev' : event.key === 'ArrowRight' ? 'reader-next' : '');
+            if (link) {
+                window.location = link.href;
+            }
+        });
+    </script>
+</body>
+</html>

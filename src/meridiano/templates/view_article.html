@@ -73,9 +73,9 @@
 
             <dt class="collapsible-header">
                 Raw Extracted Content
-                <span class="toggle-icon-container" onclick="toggleRawContent()" title="Toggle Raw Content Visibility">
-                    <i class="fas fa-eye" id="eye-icon"></i>
-                    <i class="fas fa-eye-slash" id="eye-slash-icon" style="display: none;"></i>
+                <span class="toggle-icon-container" onclick="toggleSection('raw-content')" title="Toggle Raw Content Visibility">
+                    <i class="fas fa-eye" id="raw-content-show-icon"></i>
+                    <i class="fas fa-eye-slash" id="raw-content-hide-icon" style="display: none;"></i>
                 </span>
             </dt>
             <dd id="raw-content-container" class="content-block raw-content" style="display: none;">
@@ -85,24 +85,48 @@
                     <em>Raw content not available or failed to extract.</em>
                 {% endif %}
             </dd>
+
+            <dt class="collapsible-header secondary-section">
+                <span>
+                    Full Article
+                    {% if article.full_content_fetched_at %}
+                        <span class="full-article-meta">(fetched {{ article.full_content_fetched_at | datetimeformat }})</span>
+                    {% endif %}
+                </span>
+                <span class="toggle-icon-container" onclick="toggleSection('full-content')" title="Toggle Full Article Visibility">
+                    <i class="fas fa-eye" id="full-content-show-icon"></i>
+                    <i class="fas fa-eye-slash" id="full-content-hide-icon" style="display: none;"></i>
+                </span>
+            </dt>
+            <dd id="full-content-container" class="content-block full-article-block" style="display: none;">
+                {% if article.full_content_html %}
+                    <div class="full-article-content">{{ article.full_content_html | safe }}</div>
+                {% elif article.full_content_fetched_at %}
+                    <em>The full article could not be extracted from the original page.</em>
+                {% else %}
+                    <em>The full article has not been fetched yet.</em>
+                {% endif %}
+                <form action="{{ url_for('fetch_article_full_content', article_id=article.id) }}" method="POST" class="full-article-fetch-form">
+                    <button type="submit" class="btn btn-sm">
+                        <i class="fas fa-download"></i>
+                        {% if article.full_content_html %}Refetch full article{% else %}Fetch full article{% endif %}
+                    </button>
+                </form>
+            </dd>
         </dl>
 
     </div>
     <script>
-        function toggleRawContent() {
-            var content = document.getElementById('raw-content-container');
-            var eyeIcon = document.getElementById('eye-icon');
-            var eyeSlashIcon = document.getElementById('eye-slash-icon');
+        // Shows/hides a collapsible section (<name>-container) and swaps its eye icons.
+        function toggleSection(name) {
+            var content = document.getElementById(name + '-container');
+            var showIcon = document.getElementById(name + '-show-icon');
+            var hideIcon = document.getElementById(name + '-hide-icon');
+            var opening = content.style.display === 'none' || content.style.display === '';
 
-            if (content.style.display === 'none' || content.style.display === '') {
-                content.style.display = 'block';
-                eyeIcon.style.display = 'none';
-                eyeSlashIcon.style.display = 'inline-block';
-            } else {
-                content.style.display = 'none';
-                eyeIcon.style.display = 'inline-block';
-                eyeSlashIcon.style.display = 'none';
-            }
+            content.style.display = opening ? 'block' : 'none';
+            showIcon.style.display = opening ? 'none' : 'inline-block';
+            hideIcon.style.display = opening ? 'inline-block' : 'none';
         }
     </script>
 

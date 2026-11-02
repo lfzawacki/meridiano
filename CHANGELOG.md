@@ -2,7 +2,17 @@
 
 ## 0.0.1 [unreleased]
 
+### Added
+
+- Full article view: the whole article, images included, is stored as sanitized HTML while scraping and shown in a collapsed "Full Article" section on the article page, with a button to fetch/refetch it
+- `--fetch-full-content` (and `--retry-failed`) to backfill the full article for articles already in the database
+- `--repair-encoding` (with `--dry-run`) to fix stored text saved with broken accents
+- Collection reader (`/collection/<id>/read`): reads a collection's full articles one at a time, with prev/next and arrow-key navigation
+
 ### Fixed
+
+- Pages served without a charset (e.g. Folha) were decoded as Latin-1, storing UTF-8 text as mojibake ("vegetaÃ§Ã£o")
+- Full article extraction kept no images on sites that lazy-load them or wrap them in widget containers
 
 - Fixed date filter type mismatch - updated database functions to accept `date` objects instead of strings
 - Fixed database session management - switched to context manager pattern to prevent connection leaks

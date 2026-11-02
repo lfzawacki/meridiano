@@ -133,6 +133,10 @@ Use the command line to run different stages for specific feed profiles.
   * `--process-articles`: Run only the summarization/embedding stage (per profile).
   * `--rate-articles`: Run only the impact rating stage (per profile).
   * `--generate-brief`: Run only the brief generation stage (per profile).
+  * `--fetch-full-content`: Fetch the full article (HTML with images) for articles already in the database. Covers every profile unless `--feed` is given; respects `--limit`. Not part of `--all` (new articles get it while scraping).
+  * `--retry-failed`: With `--fetch-full-content`, also retry articles whose earlier fetch failed.
+  * `--refetch`: With `--fetch-full-content`, fetch again even articles that already have it.
+  * `--repair-encoding`: Fix stored text saved with broken accents (`Ã©` instead of `é`), offline. Add `--dry-run` to only count.
   * `--all`: Run all stages sequentially for the specified profile.
   * `-m` or `--model`: Override the chat model (e.g., `ollama:qwen3:30b`).
   * `-n` or `--limit`: Limit the number of articles to process (e.g., `10`).
@@ -150,6 +154,9 @@ Use the command line to run different stages for specific feed profiles.
 
     # Generate the brief for the 'brazil' profile
     uv run -m meridiano.run_briefing --feed brazil --generate-brief
+
+    # Backfill full articles (with images) for everything already stored
+    uv run -m meridiano.run_briefing --fetch-full-content
 
     # Run all stages for the 'tech' profile
     uv run -m meridiano.run_briefing --feed tech --all

@@ -4,6 +4,8 @@ Tests for Flask application routes.
 
 import os
 import sys
+from datetime import datetime
+from unittest.mock import patch
 
 import pytest
 
@@ -14,7 +16,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 # Import app after setting up test database
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 from meridiano.app import app
-from meridiano.database import add_article, create_collection, get_collection_by_id
+from meridiano.database import add_article, add_article_to_collection, create_collection, get_collection_by_id
 
 
 @pytest.fixture
@@ -330,3 +332,88 @@ class TestHeaderActiveLinks:
         assert b'class="active">Collections</a>' in response.data
         assert b'class="active">Briefs</a>' not in response.data
         assert b'class="active">Articles</a>' not in response.data
+
+
+class TestFullArticleContent:
+    """Full article section on the article page and the collection reader."""
+
+    def _add(self, url="https://example.com/full", title="Full Story", full_html=None):
+        return add_article(
+            url=url,
+            title=title,
+            published_date=datetime(2024, 1, 1),
+            feed_source="Test Feed",
+            raw_content="plain text body",
+            feed_profile="tech",
+            full_content_html=full_html,
+        )
+
+    def test_article_page_shows_stored_full_content(self, client):
+        article_id = self._add(full_html='<p>Rich body</p><img src="https://example.com/i.jpg">')
+        response = client.get(f"/article/{article_id}")
+        assert response.status_code == 200
+        assert b"Full Article" in response.data
+        assert b'id="full-content-container"' in response.data
+        assert b"<p>Rich body</p>" in response.data
+
+    def test_article_page_offers_fetch_when_missing(self, client):
+        article_id = self._add()
+        response = client.get(f"/article/{article_id}")
+        assert b"has not been fetched yet" in response.data
+        assert f"/article/{article_id}/fetch_full_content".encode() in response.data
+
+    def test_fetch_route_stores_html(self, client):
+        article_id = self._add()
+        fake = {"content": "x", "og_image": None, "full_html": "<p>Fetched body</p>"}
+        with patch("meridiano.app.fetch_article_content_and_og_image", return_value=fake):
+            response = client.post(f"/article/{article_id}/fetch_full_content", data={"next": "//evil.example"})
+        # Absolute/protocol-relative "next" values are ignored.
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith(f"/article/{article_id}")
+
+        from meridiano.database import get_article_by_id
+
+        stored = get_article_by_id(article_id)
+        assert stored["full_content_html"] == "<p>Fetched body</p>"
+        assert stored["full_content_fetched_at"] is not None
+
+    def test_failed_fetch_keeps_existing_html(self, client):
+        article_id = self._add(full_html="<p>Old body</p>")
+        fake = {"content": None, "og_image": None, "full_html": None}
+        with patch("meridiano.app.fetch_article_content_and_og_image", return_value=fake):
+            client.post(f"/article/{article_id}/fetch_full_content")
+
+        from meridiano.database import get_article_by_id
+
+        assert get_article_by_id(article_id)["full_content_html"] == "<p>Old body</p>"
+
+    def test_collection_reader_navigation(self, client):
+        first = self._add(url="https://example.com/1", title="First", full_html="<p>First body</p>")
+        second = self._add(url="https://example.com/2", title="Second")
+        coll_id = create_collection("Reading list")
+        add_article_to_collection(coll_id, first)
+        add_article_to_collection(coll_id, second)
+
+        detail = client.get(f"/collection/{coll_id}")
+        assert f"/collection/{coll_id}/read".encode() in detail.data
+
+        response = client.get(f"/collection/{coll_id}/read/{first}")
+        assert response.status_code == 200
+        assert b"<p>First body</p>" in response.data
+
+        response = client.get(f"/collection/{coll_id}/read/{second}")
+        assert b"plain text body" in response.data
+        assert b"has not been fetched yet" in response.data
+
+        assert client.get(f"/collection/{coll_id}/read").status_code == 200
+
+    def test_collection_reader_rejects_foreign_article(self, client):
+        outsider = self._add(url="https://example.com/out")
+        inside = self._add(url="https://example.com/in")
+        coll_id = create_collection("C")
+        add_article_to_collection(coll_id, inside)
+        assert client.get(f"/collection/{coll_id}/read/{outsider}").status_code == 404
+
+    def test_empty_collection_reader_redirects(self, client):
+        coll_id = create_collection("Empty")
+        assert client.get(f"/collection/{coll_id}/read").status_code == 302

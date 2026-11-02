@@ -5,11 +5,20 @@ Tests for utility functions.
 import os
 import sys
 from datetime import datetime
+from unittest.mock import MagicMock
 
 # Add src to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
-from meridiano.utils import format_datetime
+from meridiano.utils import (
+    decode_html_response,
+    extract_full_article_html,
+    format_datetime,
+    repair_mojibake,
+    sanitize_article_html,
+    simplify_figures,
+    word_vocabulary,
+)
 
 
 class TestFormatDatetime:
@@ -48,3 +57,126 @@ class TestFormatDatetime:
         """Test formatting empty string."""
         result = format_datetime("")
         assert result == ""
+
+
+class TestSanitizeArticleHtml:
+    """Full-article HTML is rendered with |safe, so the sanitizer is the guard."""
+
+    def test_strips_scripts_handlers_and_unsafe_urls(self):
+        html = (
+            '<p onclick="x()">Hi <a href="javascript:alert(1)">bad</a> <a href="/rel">ok</a></p>'
+            '<script>alert(1)</script><iframe src="https://evil.example"></iframe>'
+            '<img src="data:image/gif;base64,AAA"><img src="/pic.jpg" onerror="alert(1)" style="x">'
+        )
+        result = sanitize_article_html(html, "https://example.com/a/b")
+
+        assert "script" not in result
+        assert "iframe" not in result
+        assert "onclick" not in result
+        assert "onerror" not in result
+        assert "style" not in result
+        assert "javascript:" not in result
+        assert "data:image" not in result
+        assert 'href="https://example.com/rel"' in result
+        assert 'src="https://example.com/pic.jpg"' in result
+        assert 'rel="noopener noreferrer nofollow"' in result
+
+    def test_converts_trafilatura_graphics_and_tables(self):
+        html = '<graphic src="/a.jpg"/><table><row><cell role="head">H</cell></row><row><cell>v</cell></row></table>'
+        result = sanitize_article_html(html, "https://example.com/")
+
+        assert '<img src="https://example.com/a.jpg"' in result
+        assert "<th>H</th>" in result
+        assert "<td>v</td>" in result
+
+    def test_dedupes_the_same_image_across_schemes(self):
+        html = '<img src="https://cdn.example.com/a.jpg"><img src="http://cdn.example.com/a.jpg">'
+        assert sanitize_article_html(html, "https://example.com/").count("<img") == 1
+
+    def test_empty_results_are_none(self):
+        assert sanitize_article_html(None, "https://example.com/") is None
+        assert sanitize_article_html("<script>x</script>", "https://example.com/") is None
+
+
+class TestExtractFullArticleHtml:
+    def test_keeps_body_images_and_drops_page_chrome(self):
+        body = "Sentence of a real article body. " * 30
+        html = (
+            "<html><body><nav>Site menu</nav><article><h1>Title</h1>"
+            f'<p>{body}</p><figure><img src="/photo.jpg" alt="Photo"></figure><p>{body}</p>'
+            "</article><footer>Footer links</footer></body></html>"
+        )
+        result = extract_full_article_html(html, "https://example.com/story")
+
+        assert result is not None
+        assert "<html" not in result
+        assert "<body" not in result
+        assert 'src="https://example.com/photo.jpg"' in result
+        assert "Site menu" not in result
+
+
+class TestDecodeHtmlResponse:
+    def _response(self, body, content_type):
+        response = MagicMock()
+        response.headers = {"Content-Type": content_type}
+        response.content = body
+        response.text = body.decode("latin-1")  # what requests guesses without a charset
+        response.apparent_encoding = "windows-1252"
+        return response
+
+    def test_utf8_page_without_charset_is_not_latin1(self):
+        """Folha serves UTF-8 as plain 'text/html'; requests would yield 'vegetaÃ§Ã£o'."""
+        response = self._response("vegetação".encode(), "text/html")
+        assert decode_html_response(response) == "vegetação"
+
+    def test_latin1_page_without_charset_falls_back_to_detection(self):
+        response = self._response("vegetação".encode("latin-1"), "text/html")
+        assert decode_html_response(response) == "vegetação"
+
+    def test_declared_charset_is_trusted(self):
+        response = self._response(b"x", "text/html; charset=ISO-8859-1")
+        response.text = "declared"
+        assert decode_html_response(response) == "declared"
+
+
+class TestRepairMojibake:
+    def test_reversible_sequences(self):
+        assert repair_mojibake("vegetaÃ§Ã£o e coraÃ§Ã£o, Ã©") == "vegetação e coração, é"
+
+    def test_lossy_leftovers(self):
+        """Stripped soft hyphen (í) and NBSP (à) leave a lone 'Ã'."""
+        assert repair_mojibake("PacÃfico, paraÃso, LÃbano e Ã BBC") == "Pacífico, paraíso, Líbano e à BBC"
+
+    def test_lost_uppercase_resolved_by_vocabulary(self):
+        vocabulary = word_vocabulary(["África também mês justiça são"])
+        assert repair_mojibake("na Ãfrica, TAMBÃM no MÃS da JUSTIÃA", vocabulary) == (
+            "na África, TAMBÉM no MÊS da JUSTIÇA"
+        )
+
+    def test_real_a_tilde_is_kept(self):
+        vocabulary = word_vocabulary(["são não"])
+        assert repair_mojibake("SÃO PAULO diz NÃO", vocabulary) == "SÃO PAULO diz NÃO"
+
+    def test_clean_text_untouched(self):
+        assert repair_mojibake("Coração “aspas” — ok") == "Coração “aspas” — ok"
+        assert repair_mojibake(None) is None
+
+
+class TestSimplifyFigures:
+    def test_lazy_image_in_widget_wrapper_survives_extraction(self):
+        """Folha wraps photos in div.widget-image, which trafilatura drops as boilerplate."""
+        body = "Texto do corpo do artigo com bastante conteúdo. " * 25
+        html = (
+            f"<html><body><article><p>{body}</p>"
+            '<div class="widget-image"><figure><div class="ratio">'
+            '<img class="c-lazyload" data-src="https://cdn.example.com/foto_md.jpg" alt="Foto">'
+            '<noscript><img src="https://cdn.example.com/foto_md.jpg"></noscript>'
+            '</div><figcaption>Legenda <span>Crédito</span></figcaption></figure></div>'
+            f"<p>{body}</p></article></body></html>"
+        )
+        assert 'class="widget-image"' not in simplify_figures(html)
+
+        result = extract_full_article_html(html, "https://example.com/story")
+        assert result.count("<img") == 1
+        assert 'src="https://cdn.example.com/foto_md.jpg"' in result
+        assert "Legenda Crédito" in result

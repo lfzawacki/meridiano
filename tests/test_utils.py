@@ -246,3 +246,20 @@ class TestLooksTruncated:
     def test_empty(self):
         assert looks_truncated(None) is False
         assert looks_truncated("") is False
+
+    def test_trailing_boilerplate_is_not_a_cut(self):
+        """Test endings seen on real sites that are not paywall cuts."""
+        assert looks_truncated("<p>Story ends here.</p><p>Join The Conversation</p>") is False
+        assert looks_truncated("<p>Fim.</p><p>Mais recente</p><p>Próxima Moraes errou mais uma vez</p>") is False
+        assert looks_truncated("<p>Fim.</p><p>Comemoração - Ramin Talaie - 4.jul.11/AFP</p>") is False
+        assert looks_truncated('<p>Fim."</p><p>com DIEGO ALEJANDRO e KARINA MATIAS</p>') is False
+        assert looks_truncated("<p>Segunda (2)</p><p>Salvador (BA): 9h, Morro do Cristo</p>") is False
+        assert looks_truncated("<p>Fim.</p><p>Com reportagem adicional de Óscar Sulbarán</p>") is False
+        assert looks_truncated("<p>Fim.</p><p>Siga o blog no Facebook e Instagram</p>") is False
+        assert looks_truncated("<p>The end.</p><p>smb/arp/msp</p>") is False
+        assert looks_truncated("<p>Fim.</p><p>Debate na TV Globo em 2022 - Stephanie Rodrigues/G1</p>") is False
+        assert looks_truncated("<p>Fim.</p><p>Podcast Café da Manhã - Reprodução</p>") is False
+        assert looks_truncated("<p>Fim.</p><p>Envie para coluna.obituario@grupofolha.com.br</p>") is False
+        assert looks_truncated("<p>Fim.</p><p>Ingressos em ingressos.simbasafari.com.br</p>") is False
+        assert looks_truncated("<p>The end.</p><p>The minister added it was fine, Sharma said. PTI</p>") is False
+        assert looks_truncated('<p>The end.</p><p>"That is okay."\u200b</p>') is False

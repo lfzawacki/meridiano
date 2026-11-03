@@ -354,22 +354,71 @@ def detect_paywall(html_content):
 # stop, so only a trailing paragraph is judged.
 _TEXT_BLOCKS = ("p", "li", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "figcaption")
 _SENTENCE_END = tuple(".!?…\"'”’»)]:;")
+# Photo captions: "... - Photographer - 16.jul.26/Agency", "... - Name/G1", "... - Reprodução".
+_PHOTO_CREDIT = re.compile(r"\b\d{1,2}\.[a-z]{3}\.\d{2}\b| [-–] [^-–]{2,50}$")
+# Contact lines: an e-mail address or a bare site address at the end.
+_CONTACT = re.compile(r"(\S+@\S+|\S+\.(com|org|net|br)(\.br)?(/\S*)?)$", re.I)
+# A finished paragraph: terminal punctuation, maybe followed by closing quotes.
+_FINISHED = re.compile(r"[.!?…][\"'”’»)\]]*$")
+# Wire sign-offs: "... Sharma added. PTI", "smb/arp/msp".
+_SIGN_OFF = re.compile(r"(\s[A-Z]{2,5}|^[a-z]{2,4}(/[a-z]{2,4})+)$")
+# Credit and promo lines that close many articles without a full stop.
+_TRAILER_PREFIXES = (
+    "com reportagem",
+    "com informações",
+    "colaborou",
+    "siga ",
+    "leia ",
+    "veja ",
+    "assine ",
+    "with reporting",
+    "additional reporting",
+    "follow ",
+    "read more",
+    "sign up",
+)
+_INVISIBLE = dict.fromkeys(map(ord, "\u200b\u200c\u200d\ufeff"), None)
+
+
+def _is_boilerplate_line(text):
+    """Trailing bits extraction keeps that are not prose: headings, credits, bylines."""
+    if text.lower().startswith(_TRAILER_PREFIXES) or _SIGN_OFF.search(text) or _CONTACT.search(text):
+        return True
+    words = [w for w in text.split() if any(c.isalpha() for c in w)]
+    if len(words) >= 2 and all(w[0].isupper() for w in words):
+        return True  # "Join The Conversation"
+    letters = [c for c in text if c.isalpha()]
+    if letters and sum(c.isupper() for c in letters) > len(letters) / 2:
+        return True  # "com DIEGO ALEJANDRO e KARINA MATIAS"
+    return bool(_PHOTO_CREDIT.search(text))
 
 
 def looks_truncated(html_fragment):
-    """Whether stored article HTML stops mid-sentence, as a paywall cut does."""
+    """Whether stored article HTML stops mid-sentence, as a paywall cut does.
+
+    Only a trailing paragraph that follows a finished one counts, so navigation
+    ("Mais recente / Próxima ..."), schedules and other non-prose endings that
+    never had a full stop are not mistaken for a cut.
+    """
     if not html_fragment:
         return False
     try:
         root = lxml.html.fragment_fromstring(html_fragment, create_parent="div")
     except Exception:
         return False
+    texts = []
     for block in reversed(root.xpath("|".join(f".//{tag}" for tag in _TEXT_BLOCKS))):
-        text = block.text_content().strip()
-        if not text:
-            continue
-        return block.tag == "p" and not text.endswith(_SENTENCE_END)
-    return False
+        text = block.text_content().translate(_INVISIBLE).strip()
+        if text:
+            texts.append((block.tag, text))
+            if len(texts) == 2:
+                break
+    if not texts:
+        return False
+    tag, last = texts[0]
+    if tag != "p" or last.endswith(_SENTENCE_END) or _is_boilerplate_line(last):
+        return False
+    return len(texts) == 1 or bool(_FINISHED.search(texts[1][1]))
 
 
 def extract_full_article_html(html_content, url):

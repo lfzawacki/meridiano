@@ -1194,3 +1194,166 @@ html[data-theme="dark"] .btn-add-article:hover {
     background-color: #51cf66;
     border-color: #51cf66;
 }
+
+/* --- Full article (article page + collection reader) --- */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.article-details dt.secondary-section {
+    margin-top: 1.5em;
+    padding-top: 0.8em;
+    border-top: 1px dashed #dee2e6;
+    color: #6c757d;
+}
+.full-article-meta {
+    font-weight: normal;
+    font-size: 0.85em;
+    color: #868e96;
+}
+.content-block.full-article-block {
+    background-color: transparent;
+}
+.full-article-fetch-form {
+    margin: 0.8em 0 0;
+}
+
+.full-article-content {
+    font-size: 1.05em;
+    line-height: 1.7;
+    overflow-wrap: break-word;
+}
+.full-article-content img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 1em auto;
+    border-radius: 4px;
+}
+.full-article-content figure { margin: 1em 0; }
+.full-article-content figcaption {
+    font-size: 0.85em;
+    color: #6c757d;
+    text-align: center;
+}
+.full-article-content h1,
+.full-article-content h2,
+.full-article-content h3,
+.full-article-content h4 {
+    line-height: 1.3;
+    margin: 1.2em 0 0.5em;
+}
+.full-article-content blockquote {
+    margin: 1em 0;
+    padding-left: 1em;
+    border-left: 3px solid #dee2e6;
+    color: #495057;
+}
+.full-article-content pre {
+    overflow-x: auto;
+    padding: 0.8em;
+}
+.full-article-content table {
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin: 1em 0;
+}
+.full-article-content th,
+.full-article-content td {
+    border: 1px solid #dee2e6;
+    padding: 4px 8px;
+}
+.reader-plain-text { white-space: pre-wrap; }
+
+/* Collection reader */
+.reader-open-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 4px 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    color: #0056b3;
+    text-decoration: none;
+    font-size: 0.95rem;
+}
+.reader-open-button:hover { background-color: #e9ecef; }
+
+.reader-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6em 1em;
+    margin: 1em 0;
+}
+.reader-back {
+    color: #0056b3;
+    text-decoration: none;
+    font-weight: bold;
+}
+.reader-jump { flex: 1 1 220px; margin: 0; }
+.reader-jump select {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+}
+.reader-position { color: #6c757d; font-size: 0.9em; }
+
+.reader-article-header { margin-bottom: 1.2em; }
+.reader-title {
+    margin: 0.4em 0 0.2em;
+    line-height: 1.3;
+}
+.reader-lead-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto 1em;
+    border-radius: 4px;
+}
+.reader-fallback-note {
+    padding: 0.6em 0.9em;
+    margin-bottom: 1em;
+    background-color: #fff8e1;
+    border: 1px solid #ffe08a;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+.reader-nav { margin-top: 2em; }
+.paywall-notice {
+    display: flex;
+    gap: 0.6em;
+    align-items: baseline;
+    padding: 0.6em 0.9em;
+    margin-bottom: 1em;
+    background-color: #fff8e1;
+    border: 1px solid #ffe08a;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+.paywall-notice--cut { background-color: #fdecea; border-color: #f5c2c0; }
+
+html[data-theme="dark"] .article-details dt.secondary-section { border-top-color: #343a40; color: #9aa0a6; }
+html[data-theme="dark"] .full-article-content figcaption,
+html[data-theme="dark"] .full-article-meta,
+html[data-theme="dark"] .reader-position { color: #9aa0a6; }
+html[data-theme="dark"] .full-article-content blockquote { border-left-color: #495057; color: #adb5bd; }
+html[data-theme="dark"] .full-article-content th,
+html[data-theme="dark"] .full-article-content td { border-color: #343a40; }
+html[data-theme="dark"] .full-article-content a,
+html[data-theme="dark"] .reader-back,
+html[data-theme="dark"] .reader-open-button { color: #4dabf7; }
+html[data-theme="dark"] .reader-open-button { border-color: #343a40; }
+html[data-theme="dark"] .reader-open-button:hover { background-color: #2b2f36; }
+html[data-theme="dark"] .reader-jump select { background-color: #2b2f36; color: #e4e6eb; border-color: #495057; }
+html[data-theme="dark"] .reader-fallback-note { background-color: #2f2a1b; border-color: #5c4d1f; color: #e4e6eb; }
+html[data-theme="dark"] .paywall-notice { background-color: #2f2a1b; border-color: #5c4d1f; color: #e4e6eb; }
+html[data-theme="dark"] .paywall-notice--cut { background-color: #3a2222; border-color: #6b3434; }
+html[data-theme="dark"] .paywall-notice a { color: #4dabf7; }

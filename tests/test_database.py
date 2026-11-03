@@ -354,3 +354,147 @@ class TestCollections:
         article = get_article_by_id(article_id)
         assert article is not None
         assert article["id"] == article_id
+
+
+class TestFullContent:
+    """Backfill bookkeeping for full-article HTML."""
+
+    def _add(self, url, profile="test", full_html=None):
+        return add_article(
+            url=url,
+            title=url,
+            published_date=None,
+            feed_source="Feed",
+            raw_content="text",
+            feed_profile=profile,
+            full_content_html=full_html,
+        )
+
+    def test_missing_list_skips_stored_and_attempted(self):
+        from meridiano.database import get_articles_missing_full_content, update_article_full_content
+
+        stored = self._add("https://e.com/stored", full_html="<p>x</p>")
+        failed = self._add("https://e.com/failed")
+        pending = self._add("https://e.com/pending", profile="other")
+        update_article_full_content(failed, None)
+
+        ids = {a["id"] for a in get_articles_missing_full_content()}
+        assert ids == {pending}
+        assert stored not in ids
+
+        retry_ids = {a["id"] for a in get_articles_missing_full_content(include_attempted=True)}
+        assert retry_ids == {failed, pending}
+
+        assert get_articles_missing_full_content(feed_profile="test") == []
+
+    def test_update_returns_false_for_missing_article(self):
+        from meridiano.database import update_article_full_content
+
+        assert update_article_full_content(9999, "<p>x</p>") is False
+
+
+class TestRepairArticleEncoding:
+    def test_repairs_and_counts(self):
+        from meridiano.database import repair_article_encoding
+        from meridiano.utils import repair_mojibake, word_vocabulary
+
+        clean = add_article(
+            url="https://e.com/clean",
+            title="Ok",
+            published_date=None,
+            feed_source="F",
+            raw_content="A África e o mês, outro mês",
+            feed_profile="test",
+        )
+        broken = add_article(
+            url="https://e.com/broken",
+            title="CoraÃ§Ã£o",
+            published_date=None,
+            feed_source="F",
+            raw_content="Na Ãfrica, este MÃS, vegetaÃ§Ã£o",
+            feed_profile="test",
+        )
+
+        dry = repair_article_encoding(repair_mojibake, word_vocabulary, dry_run=True)
+        assert dry == {"changed": 1, "suspicious": 1, "remaining": 0}
+        assert get_article_by_id(broken)["title"] == "CoraÃ§Ã£o"
+
+        repair_article_encoding(repair_mojibake, word_vocabulary)
+        fixed = get_article_by_id(broken)
+        assert fixed["title"] == "Coração"
+        assert fixed["raw_content"] == "Na África, este MÊS, vegetação"
+        assert get_article_by_id(clean)["raw_content"] == "A África e o mês, outro mês"
+
+    def test_refetch_replaces_only_broken_raw_content(self):
+        from meridiano.database import update_article_full_content
+
+        good = add_article(
+            url="https://e.com/g",
+            title="t",
+            published_date=None,
+            feed_source="F",
+            raw_content="texto bom",
+            feed_profile="test",
+        )
+        bad = add_article(
+            url="https://e.com/b",
+            title="t",
+            published_date=None,
+            feed_source="F",
+            raw_content="vegetaÃ§Ã£o",
+            feed_profile="test",
+        )
+        update_article_full_content(good, "<p>x</p>", raw_content="novo")
+        update_article_full_content(bad, "<p>x</p>", raw_content="vegetação")
+        assert get_article_by_id(good)["raw_content"] == "texto bom"
+        assert get_article_by_id(bad)["raw_content"] == "vegetação"
+
+
+class TestFullContentPaywall:
+    def test_flag_stored_with_html_and_source_filter(self):
+        from meridiano.database import (
+            get_article_by_id,
+            get_articles_missing_full_content,
+            update_article_full_content,
+        )
+
+        paid = add_article(
+            url="https://paid.example/a",
+            title="a",
+            published_date=None,
+            feed_source="Paid Times",
+            raw_content="t",
+            feed_profile="test",
+            full_content_html="<p>x</p>",
+            full_content_paywalled=True,
+        )
+        free = add_article(
+            url="https://free.example/b",
+            title="b",
+            published_date=None,
+            feed_source="Free Post",
+            raw_content="t",
+            feed_profile="test",
+        )
+        assert get_article_by_id(paid)["full_content_paywalled"] is True
+
+        # A failed fetch keeps neither HTML nor flag changes.
+        update_article_full_content(free, None, paywalled=True)
+        assert get_article_by_id(free)["full_content_paywalled"] is None
+        update_article_full_content(free, "<p>y</p>", paywalled=False)
+        assert get_article_by_id(free)["full_content_paywalled"] is False
+
+        ids = {a["id"] for a in get_articles_missing_full_content(include_stored=True, feed_source="paid")}
+        assert ids == {paid}
+
+        unchecked = add_article(
+            url="https://paid.example/c",
+            title="c",
+            published_date=None,
+            feed_source="Paid Times",
+            raw_content="t",
+            feed_profile="test",
+            full_content_html="<p>old</p>",
+        )
+        ids = {a["id"] for a in get_articles_missing_full_content(unchecked_paywall=True)}
+        assert ids == {unchecked}

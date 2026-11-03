@@ -5,6 +5,7 @@ SQLModel database models for Meridiano application.
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import inspect
 from sqlmodel import Field, Session, SQLModel, create_engine, text
 
 from . import config_base as config
@@ -52,6 +53,14 @@ class Article(SQLModel, table=True):
     impact_score: Optional[int] = None
     image_url: Optional[str] = None
     feed_profile: str = Field(default="default", index=True)
+    # Sanitized HTML of the whole article, images included, for the reader views.
+    full_content_html: Optional[str] = None
+    # When a full-content fetch was last attempted (set even if it failed), so the
+    # backfill command does not hammer the same unreachable pages on every run.
+    full_content_fetched_at: Optional[datetime] = None
+    # The page marks itself subscriber-only (schema.org isAccessibleForFree), so the
+    # stored full article may be only what the paywall lets through.
+    full_content_paywalled: Optional[bool] = None
 
 
 class Brief(SQLModel, table=True):
@@ -81,12 +90,14 @@ class Brief(SQLModel, table=True):
 # Collections models (many-to-many association) --------------------------------
 class CollectionArticle(SQLModel, table=True):
     """Association table between collections and articles."""
+
     collection_id: Optional[int] = Field(default=None, foreign_key="collections.id", primary_key=True)
     article_id: Optional[int] = Field(default=None, foreign_key="articles.id", primary_key=True)
 
 
 class Collection(SQLModel, table=True):
     """Collection of articles created by a user."""
+
     __tablename__ = "collections"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -99,9 +110,38 @@ class Collection(SQLModel, table=True):
 engine = create_engine(config.DATABASE_URL, echo=False)
 
 
+# Columns added to existing tables after release: (table, column, PostgreSQL type, SQLite type).
+# create_all() only creates missing tables, so older databases get these via ALTER TABLE.
+ADDED_COLUMNS = (
+    ("articles", "full_content_html", "TEXT", "TEXT"),
+    ("articles", "full_content_fetched_at", "TIMESTAMP", "DATETIME"),
+    ("articles", "full_content_paywalled", "BOOLEAN", "BOOLEAN"),
+)
+
+
+def _add_missing_columns():
+    """Adds the ADDED_COLUMNS that an existing database does not have yet."""
+    is_postgres = "postgresql" in config.DATABASE_URL.lower()
+    inspector = inspect(engine)
+    with Session(engine) as session:
+        for table, column, pg_type, sqlite_type in ADDED_COLUMNS:
+            existing = {c["name"] for c in inspector.get_columns(table)}
+            if column in existing:
+                continue
+            column_type = pg_type if is_postgres else sqlite_type
+            print(f"Migrating '{table}' table: Adding '{column}' column...")
+            try:
+                session.exec(text(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}"))
+                session.commit()
+            except Exception as e:
+                print(f"Migration of '{table}.{column}' failed: {e}")
+                session.rollback()
+
+
 def create_db_and_tables():
     """Create database tables if they don't exist."""
     SQLModel.metadata.create_all(engine)
+    _add_missing_columns()
 
     # Simple migration logic for 'archived' column in 'collections'
     with Session(engine) as session:

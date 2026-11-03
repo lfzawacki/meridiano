@@ -1,0 +1,15 @@
+{% if article.full_content_paywalled %}
+    {% if article.full_content_html | looks_truncated %}
+        <div class="paywall-notice paywall-notice--cut">
+            <i class="fas fa-lock"></i>
+            <span><strong>Cut off by a paywall.</strong> The site only served the beginning of this article; the text stops mid-sentence.
+            <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">Read the rest on the original page <i class="fas fa-external-link"></i></a></span>
+        </div>
+    {% else %}
+        <div class="paywall-notice">
+            <i class="fas fa-lock"></i>
+            <span><strong>Subscriber-only site.</strong> The page marks this article as paywalled, so the text below may be incomplete.
+            <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">Original page <i class="fas fa-external-link"></i></a></span>
+        </div>
+    {% endif %}
+{% endif %}

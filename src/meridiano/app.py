@@ -12,13 +12,19 @@ from sqlmodel import select
 
 from meridiano import config_base as config  # Use base config for app settings
 from meridiano import database  # Import our database functions
-from meridiano.utils import format_datetime, scrape_single_article_details
+from meridiano.utils import (
+    fetch_article_content_and_og_image,
+    format_datetime,
+    looks_truncated,
+    scrape_single_article_details,
+)
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "a_default_secret_key_for_development_only")
 
 # Register the filter with Jinja
 app.jinja_env.filters["datetimeformat"] = format_datetime
+app.jinja_env.filters["looks_truncated"] = looks_truncated
 
 
 def process_artciles_content(articles_data):
@@ -244,6 +250,30 @@ def view_article(article_id):
     )
 
 
+@app.route("/article/<int:article_id>/fetch_full_content", methods=["POST"])
+def fetch_article_full_content(article_id):
+    """Fetches (or refetches) the full article HTML, with images, for one article."""
+    article = database.get_article_by_id(article_id)
+    if article is None:
+        abort(404)
+
+    result = fetch_article_content_and_og_image(article["url"])
+    full_html = result.get("full_html")
+    database.update_article_full_content(
+        article_id, full_html, raw_content=result.get("content"), paywalled=result.get("paywalled")
+    )
+    if full_html:
+        flash("Full article fetched.", "success")
+    else:
+        flash("Could not extract the full article from the original page.", "error")
+
+    next_url = request.form.get("next", "")
+    # Only same-site paths, never an absolute URL, to avoid an open redirect.
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return redirect(next_url)
+    return redirect(url_for("view_article", article_id=article_id))
+
+
 @app.route("/add_article", methods=["GET", "POST"])
 def add_manual_article():
     if request.method == "POST":
@@ -294,6 +324,8 @@ def add_manual_article():
                 raw_content=final_raw_content,
                 feed_profile=feed_profile_to_assign,
                 image_url=final_image_url,
+                full_content_html=scraped_details.get("full_content_html"),
+                full_content_paywalled=scraped_details.get("full_content_paywalled"),
             )
             if article_id:
                 if final_raw_content:
@@ -375,7 +407,44 @@ def view_collection(collection_id):
         abort(404)
     articles = database.get_articles_for_collection(collection_id)
     articles = process_artciles_content(articles)
-    return render_template("collection_detail.html", collection=coll, articles=articles)
+    return render_template(
+        "collection_detail.html", collection=coll, articles=articles, reader_collection_id=collection_id
+    )
+
+
+@app.route("/collection/<int:collection_id>/read")
+@app.route("/collection/<int:collection_id>/read/<int:article_id>")
+def read_collection(collection_id, article_id=None):
+    """Reader view: one full article at a time, with navigation through the collection."""
+    coll = database.get_collection_by_id(collection_id)
+    if coll is None:
+        abort(404)
+
+    index = database.get_collection_article_index(collection_id)
+    if not index:
+        flash("This collection has no articles to read yet.", "warning")
+        return redirect(url_for("view_collection", collection_id=collection_id))
+
+    ids = [entry["id"] for entry in index]
+    if article_id is None:
+        article_id = ids[0]
+    elif article_id not in ids:
+        abort(404)
+
+    position = ids.index(article_id)
+    article = dict(database.get_article_by_id(article_id))
+    summary_markdown = article.get("processed_content") or ""
+    article["processed_content_html"] = Markup(markdown.markdown(summary_markdown, extensions=["fenced_code"]))
+
+    return render_template(
+        "collection_reader.html",
+        collection=coll,
+        article=article,
+        index=index,
+        position=position,
+        prev_id=ids[position - 1] if position > 0 else None,
+        next_id=ids[position + 1] if position + 1 < len(ids) else None,
+    )
 
 
 @app.route("/collection/<int:collection_id>/delete", methods=["POST"])

@@ -28,6 +28,12 @@
           <a href="{{ article['url'] }}" class="article-link-original" target="_blank" rel="noopener noreferrer">
             <i class="fas fa-external-link" title="Original Article"></i>
           </a>
+          {% if reader_collection_id is defined %}
+          <a href="{{ url_for('read_collection', collection_id=reader_collection_id, article_id=article['id']) }}"
+             class="article-link-original" title="Read full article">
+            <i class="fas fa-book-open"></i>
+          </a>
+          {% endif %}
           <div class="collections-control">
             <span id="collections-toggle-{{ article['id'] }}" class="collections-button" onclick="toggleCollectionsMenu(event, 'collections-menu-{{ article['id'] }}')" title="Add to Collection">
               <i class="fas fa-folder-plus"></i>

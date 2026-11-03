@@ -160,6 +160,7 @@ def scrape_articles(feed_profile, rss_feeds):  # Added params
             raw_content = fetch_result["content"]
             og_image_url = fetch_result["og_image"]
             full_content_html = fetch_result.get("full_html")
+            full_content_paywalled = fetch_result.get("paywalled")
             # --- End Fetch ---
 
             if not raw_content:
@@ -174,7 +175,15 @@ def scrape_articles(feed_profile, rss_feeds):  # Added params
                 print("  No image found in RSS or OG tags.")
 
             article_id = database.add_article(
-                url, title, published_date, feed_source, raw_content, feed_profile, final_image_url, full_content_html
+                url,
+                title,
+                published_date,
+                feed_source,
+                raw_content,
+                feed_profile,
+                final_image_url,
+                full_content_html,
+                full_content_paywalled,
             )
             if article_id:
                 new_articles_count += 1
@@ -183,19 +192,31 @@ def scrape_articles(feed_profile, rss_feeds):  # Added params
     print(f"--- Scraping Finished [{feed_profile}]. Added {new_articles_count} new articles. ---")
 
 
-def fetch_full_content(feed_profile=None, limit=1000, retry_failed=False, refetch=False):
+def fetch_full_content(
+    feed_profile=None, limit=1000, retry_failed=False, refetch=False, source=None, check_paywall=False
+):
     """Backfills the full-article HTML (with images) for articles already stored.
 
     Articles scraped before full content existed only have plain text. Each page
     is fetched again and its body stored as sanitized HTML. ``feed_profile`` None
     covers every profile; failed pages are skipped on later runs unless
     ``retry_failed`` is set. ``refetch`` fetches again even articles that already
-    have it (e.g. HTML stored before an extraction fix).
+    have it (e.g. HTML stored before an extraction fix). ``source`` keeps only
+    feeds whose name contains it, e.g. to refetch one paywalled site.
+    ``check_paywall`` refetches only stored articles whose paywall flag is unknown
+    (fetched before paywall detection existed).
     """
     scope = feed_profile or "all profiles"
+    if source:
+        scope += f", source ~ {source!r}"
     print(f"\n--- Starting Full Content Fetch [{scope}] ---")
     pending = database.get_articles_missing_full_content(
-        feed_profile, limit, include_attempted=retry_failed, include_stored=refetch
+        feed_profile,
+        limit,
+        include_attempted=retry_failed,
+        include_stored=refetch,
+        feed_source=source,
+        unchecked_paywall=check_paywall,
     )
     if not pending:
         print("No articles missing full content.")
@@ -207,9 +228,13 @@ def fetch_full_content(feed_profile=None, limit=1000, retry_failed=False, refetc
         print(f"[{position}/{len(pending)}] Article ID {article['id']}: {article['url'][:80]}")
         result = fetch_article_content_and_og_image(article["url"])
         full_html = result.get("full_html")
-        database.update_article_full_content(article["id"], full_html, raw_content=result.get("content"))
+        database.update_article_full_content(
+            article["id"], full_html, raw_content=result.get("content"), paywalled=result.get("paywalled")
+        )
         if full_html:
             fetched += 1
+            if result.get("paywalled"):
+                print("  Paywalled: the article may be cut short.")
         else:
             print("  Could not extract full content.")
         time.sleep(0.5)  # Be polite
@@ -535,6 +560,16 @@ def main():
         help="With --fetch-full-content, fetch again even articles that already have full content.",
     )
     parser.add_argument(
+        "--check-paywall",
+        dest="check_paywall",
+        action="store_true",
+        help="With --fetch-full-content, refetch only stored articles not yet checked for a paywall.",
+    )
+    parser.add_argument(
+        "--source",
+        help="With --fetch-full-content, only feeds whose source name contains this text (case-insensitive).",
+    )
+    parser.add_argument(
         "--repair-encoding",
         dest="repair_encoding",
         action="store_true",
@@ -549,24 +584,17 @@ def main():
         help="With --repair-encoding, report how many articles would change without saving.",
     )
     parser.add_argument(
-        '--all',
-        dest='run_all',
-        action='store_true',
+        "--all",
+        dest="run_all",
+        action="store_true",
         help=(
-            'Run all stages sequentially (scrape, process, generate).\n'
-            'This is the default behavior if no specific stage argument is given.'
+            "Run all stages sequentially (scrape, process, generate).\n"
+            "This is the default behavior if no specific stage argument is given."
         ),
     )
+    parser.add_argument("-m", "--model", type=str, help='Override the LLM model (e.g., "ollama:qwen3:30b").')
     parser.add_argument(
-        '-m', '--model',
-        type=str,
-        help='Override the LLM model (e.g., "ollama:qwen3:30b").'
-    )
-    parser.add_argument(
-        '-n', '--limit',
-        type=int,
-        default=1000,
-        help='Limit the number of articles to process/rate (default: 1000).'
+        "-n", "--limit", type=int, default=1000, help="Limit the number of articles to process/rate (default: 1000)."
     )
 
     args = parser.parse_args()
@@ -672,7 +700,14 @@ def main():
                 print(f"Cannot run generate stage: No RSS_FEEDS found for profile '{feed_profile_name}'.")
         if args.fetch_full:
             print("\n>>> Running ONLY Fetch Full Content stage <<<")
-            fetch_full_content(args.feed, limit=args.limit, retry_failed=args.retry_failed, refetch=args.refetch)
+            fetch_full_content(
+                args.feed,
+                limit=args.limit,
+                retry_failed=args.retry_failed,
+                refetch=args.refetch,
+                source=args.source,
+                check_paywall=args.check_paywall,
+            )
         if args.repair_encoding:
             print("\n>>> Running ONLY Repair Encoding stage <<<")
             repair_encoding(args.feed, dry_run=args.dry_run)

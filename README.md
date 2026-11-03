@@ -136,6 +136,8 @@ Use the command line to run different stages for specific feed profiles.
   * `--fetch-full-content`: Fetch the full article (HTML with images) for articles already in the database. Covers every profile unless `--feed` is given; respects `--limit`. Not part of `--all` (new articles get it while scraping).
   * `--retry-failed`: With `--fetch-full-content`, also retry articles whose earlier fetch failed.
   * `--refetch`: With `--fetch-full-content`, fetch again even articles that already have it.
+  * `--check-paywall`: With `--fetch-full-content`, refetch only articles stored before paywall detection, so they get the paywall notice when it applies.
+  * `--source <text>`: With `--fetch-full-content`, only feeds whose source name contains the text (e.g. `--source folha`).
   * `--repair-encoding`: Fix stored text saved with broken accents (`Ã©` instead of `é`), offline. Add `--dry-run` to only count.
   * `--all`: Run all stages sequentially for the specified profile.
   * `-m` or `--model`: Override the chat model (e.g., `ollama:qwen3:30b`).

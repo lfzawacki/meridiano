@@ -100,6 +100,7 @@
             </dt>
             <dd id="full-content-container" class="content-block full-article-block" style="display: none;">
                 {% if article.full_content_html %}
+                    {% include '_paywall_notice.html' %}
                     <div class="full-article-content">{{ article.full_content_html | safe }}</div>
                 {% elif article.full_content_fetched_at %}
                     <em>The full article could not be extracted from the original page.</em>

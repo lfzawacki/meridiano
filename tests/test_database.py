@@ -399,12 +399,20 @@ class TestRepairArticleEncoding:
         from meridiano.utils import repair_mojibake, word_vocabulary
 
         clean = add_article(
-            url="https://e.com/clean", title="Ok", published_date=None, feed_source="F",
-            raw_content="A África e o mês, outro mês", feed_profile="test",
+            url="https://e.com/clean",
+            title="Ok",
+            published_date=None,
+            feed_source="F",
+            raw_content="A África e o mês, outro mês",
+            feed_profile="test",
         )
         broken = add_article(
-            url="https://e.com/broken", title="CoraÃ§Ã£o", published_date=None, feed_source="F",
-            raw_content="Na Ãfrica, este MÃS, vegetaÃ§Ã£o", feed_profile="test",
+            url="https://e.com/broken",
+            title="CoraÃ§Ã£o",
+            published_date=None,
+            feed_source="F",
+            raw_content="Na Ãfrica, este MÃS, vegetaÃ§Ã£o",
+            feed_profile="test",
         )
 
         dry = repair_article_encoding(repair_mojibake, word_vocabulary, dry_run=True)
@@ -421,14 +429,72 @@ class TestRepairArticleEncoding:
         from meridiano.database import update_article_full_content
 
         good = add_article(
-            url="https://e.com/g", title="t", published_date=None, feed_source="F",
-            raw_content="texto bom", feed_profile="test",
+            url="https://e.com/g",
+            title="t",
+            published_date=None,
+            feed_source="F",
+            raw_content="texto bom",
+            feed_profile="test",
         )
         bad = add_article(
-            url="https://e.com/b", title="t", published_date=None, feed_source="F",
-            raw_content="vegetaÃ§Ã£o", feed_profile="test",
+            url="https://e.com/b",
+            title="t",
+            published_date=None,
+            feed_source="F",
+            raw_content="vegetaÃ§Ã£o",
+            feed_profile="test",
         )
         update_article_full_content(good, "<p>x</p>", raw_content="novo")
         update_article_full_content(bad, "<p>x</p>", raw_content="vegetação")
         assert get_article_by_id(good)["raw_content"] == "texto bom"
         assert get_article_by_id(bad)["raw_content"] == "vegetação"
+
+
+class TestFullContentPaywall:
+    def test_flag_stored_with_html_and_source_filter(self):
+        from meridiano.database import (
+            get_article_by_id,
+            get_articles_missing_full_content,
+            update_article_full_content,
+        )
+
+        paid = add_article(
+            url="https://paid.example/a",
+            title="a",
+            published_date=None,
+            feed_source="Paid Times",
+            raw_content="t",
+            feed_profile="test",
+            full_content_html="<p>x</p>",
+            full_content_paywalled=True,
+        )
+        free = add_article(
+            url="https://free.example/b",
+            title="b",
+            published_date=None,
+            feed_source="Free Post",
+            raw_content="t",
+            feed_profile="test",
+        )
+        assert get_article_by_id(paid)["full_content_paywalled"] is True
+
+        # A failed fetch keeps neither HTML nor flag changes.
+        update_article_full_content(free, None, paywalled=True)
+        assert get_article_by_id(free)["full_content_paywalled"] is None
+        update_article_full_content(free, "<p>y</p>", paywalled=False)
+        assert get_article_by_id(free)["full_content_paywalled"] is False
+
+        ids = {a["id"] for a in get_articles_missing_full_content(include_stored=True, feed_source="paid")}
+        assert ids == {paid}
+
+        unchecked = add_article(
+            url="https://paid.example/c",
+            title="c",
+            published_date=None,
+            feed_source="Paid Times",
+            raw_content="t",
+            feed_profile="test",
+            full_content_html="<p>old</p>",
+        )
+        ids = {a["id"] for a in get_articles_missing_full_content(unchecked_paywall=True)}
+        assert ids == {unchecked}

@@ -8,6 +8,7 @@
 - `--fetch-full-content` (and `--retry-failed`) to backfill the full article for articles already in the database
 - `--repair-encoding` (with `--dry-run`) to fix stored text saved with broken accents
 - Collection reader (`/collection/<id>/read`): reads a collection's full articles one at a time, with prev/next and arrow-key navigation
+- Paywall notice on full articles: pages marked subscriber-only (schema.org `isAccessibleForFree: false`) show a warning, and a stronger one when the text stops mid-sentence; `--check-paywall` and `--source` refetch articles stored before detection
 
 ### Fixed
 

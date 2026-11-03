@@ -337,7 +337,7 @@ class TestHeaderActiveLinks:
 class TestFullArticleContent:
     """Full article section on the article page and the collection reader."""
 
-    def _add(self, url="https://example.com/full", title="Full Story", full_html=None):
+    def _add(self, url="https://example.com/full", title="Full Story", full_html=None, paywalled=None):
         return add_article(
             url=url,
             title=title,
@@ -346,7 +346,18 @@ class TestFullArticleContent:
             raw_content="plain text body",
             feed_profile="tech",
             full_content_html=full_html,
+            full_content_paywalled=paywalled,
         )
+
+    def test_paywall_notices(self, client):
+        cut = self._add(url="https://example.com/cut", full_html="<p>The deal was signed by the</p>", paywalled=True)
+        marked = self._add(url="https://example.com/marked", full_html="<p>Whole story.</p>", paywalled=True)
+        free = self._add(url="https://example.com/free", full_html="<p>Free story</p>", paywalled=False)
+        assert b"Cut off by a paywall" in client.get(f"/article/{cut}").data
+        marked_page = client.get(f"/article/{marked}").data
+        assert b"Subscriber-only site" in marked_page
+        assert b"Cut off by a paywall" not in marked_page
+        assert b"paywall-notice" not in client.get(f"/article/{free}").data
 
     def test_article_page_shows_stored_full_content(self, client):
         article_id = self._add(full_html='<p>Rich body</p><img src="https://example.com/i.jpg">')

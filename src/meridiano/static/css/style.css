@@ -1327,6 +1327,18 @@ html[data-theme="dark"] .btn-add-article:hover {
     font-size: 0.9em;
 }
 .reader-nav { margin-top: 2em; }
+.paywall-notice {
+    display: flex;
+    gap: 0.6em;
+    align-items: baseline;
+    padding: 0.6em 0.9em;
+    margin-bottom: 1em;
+    background-color: #fff8e1;
+    border: 1px solid #ffe08a;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+.paywall-notice--cut { background-color: #fdecea; border-color: #f5c2c0; }
 
 html[data-theme="dark"] .article-details dt.secondary-section { border-top-color: #343a40; color: #9aa0a6; }
 html[data-theme="dark"] .full-article-content figcaption,
@@ -1342,3 +1354,6 @@ html[data-theme="dark"] .reader-open-button { border-color: #343a40; }
 html[data-theme="dark"] .reader-open-button:hover { background-color: #2b2f36; }
 html[data-theme="dark"] .reader-jump select { background-color: #2b2f36; color: #e4e6eb; border-color: #495057; }
 html[data-theme="dark"] .reader-fallback-note { background-color: #2f2a1b; border-color: #5c4d1f; color: #e4e6eb; }
+html[data-theme="dark"] .paywall-notice { background-color: #2f2a1b; border-color: #5c4d1f; color: #e4e6eb; }
+html[data-theme="dark"] .paywall-notice--cut { background-color: #3a2222; border-color: #6b3434; }
+html[data-theme="dark"] .paywall-notice a { color: #4dabf7; }

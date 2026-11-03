@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from collections import Counter
@@ -23,11 +24,39 @@ logger = logging.getLogger()
 # text survives) or dropped by the cleaner, so the page can render it as-is.
 FULL_CONTENT_ALLOWED_TAGS = frozenset(
     {
-        "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6",
-        "ul", "ol", "li", "blockquote", "pre", "code",
-        "strong", "b", "em", "i", "u", "s", "sub", "sup",
-        "a", "img", "figure", "figcaption",
-        "table", "thead", "tbody", "tr", "th", "td",
+        "p",
+        "br",
+        "hr",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "ul",
+        "ol",
+        "li",
+        "blockquote",
+        "pre",
+        "code",
+        "strong",
+        "b",
+        "em",
+        "i",
+        "u",
+        "s",
+        "sub",
+        "sup",
+        "a",
+        "img",
+        "figure",
+        "figcaption",
+        "table",
+        "thead",
+        "tbody",
+        "tr",
+        "th",
+        "td",
     }
 )
 FULL_CONTENT_ALLOWED_ATTRS = frozenset({"href", "src", "alt", "title", "colspan", "rowspan"})
@@ -279,6 +308,70 @@ def simplify_figures(html_content):
     return lxml.html.tostring(doc, encoding="unicode")
 
 
+# schema.org lets a publisher flag subscriber-only content with
+# "isAccessibleForFree": false (JSON-LD or microdata), which is what Google's
+# paywall structured data uses. Values come as booleans or strings, and some
+# sites (Economic Times) write the enum URL instead.
+_NOT_FREE_VALUES = {"false", "https://schema.org/false", "http://schema.org/false"}
+
+
+def _marks_not_free(node):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "isAccessibleForFree":
+                if value is False or (isinstance(value, str) and value.strip().lower() in _NOT_FREE_VALUES):
+                    return True
+            elif _marks_not_free(value):
+                return True
+    elif isinstance(node, list):
+        return any(_marks_not_free(item) for item in node)
+    return False
+
+
+def detect_paywall(html_content):
+    """Whether the page declares itself (partly) subscriber-only via schema.org markup."""
+    if not html_content:
+        return False
+    try:
+        doc = lxml.html.fromstring(html_content)
+    except Exception:
+        return False
+    for value in doc.xpath('//*[@itemprop="isAccessibleForFree"]/@content'):
+        if value.strip().lower() in _NOT_FREE_VALUES:
+            return True
+    for script in doc.xpath('//script[@type="application/ld+json"]/text()'):
+        try:
+            data = json.loads(script)
+        except ValueError:
+            continue
+        if _marks_not_free(data):
+            return True
+    return False
+
+
+# Blocks whose text decides whether an article ends cleanly. A paywall cut stops
+# mid-paragraph; lists, tables and captions often legitimately end without a full
+# stop, so only a trailing paragraph is judged.
+_TEXT_BLOCKS = ("p", "li", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "figcaption")
+_SENTENCE_END = tuple(".!?…\"'”’»)]:;")
+
+
+def looks_truncated(html_fragment):
+    """Whether stored article HTML stops mid-sentence, as a paywall cut does."""
+    if not html_fragment:
+        return False
+    try:
+        root = lxml.html.fragment_fromstring(html_fragment, create_parent="div")
+    except Exception:
+        return False
+    for block in reversed(root.xpath("|".join(f".//{tag}" for tag in _TEXT_BLOCKS))):
+        text = block.text_content().strip()
+        if not text:
+            continue
+        return block.tag == "p" and not text.endswith(_SENTENCE_END)
+    return False
+
+
 def extract_full_article_html(html_content, url):
     """Extracts the article body from a page as sanitized HTML, images included."""
     try:
@@ -325,13 +418,16 @@ def fetch_article_content_and_og_image(url):
     and extracts the og:image URL using BeautifulSoup.
 
     Returns:
-        dict: {'content': str|None, 'og_image': str|None, 'full_html': str|None}
+        dict: {'content': str|None, 'og_image': str|None, 'full_html': str|None,
+               'paywalled': bool}
         'full_html' is the article body as sanitized HTML with its images, taken
-        from the same response so no extra request is made.
+        from the same response so no extra request is made. 'paywalled' tells the
+        page marks itself subscriber-only, so the body may be cut short.
     """
     content = None
     og_image = None
     full_html = None
+    paywalled = False
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0",
@@ -365,17 +461,18 @@ def fetch_article_content_and_og_image(url):
         # 3. Full article body as HTML, with images, for the reader views
         if content:
             full_html = extract_full_article_html(html_content, url)
+            paywalled = detect_paywall(html_content)
 
-        return {"content": content, "og_image": og_image, "full_html": full_html}
+        return {"content": content, "og_image": og_image, "full_html": full_html, "paywalled": paywalled}
 
     except requests.exceptions.RequestException as e:
         print(f"Error fetching {url}: {e}")
-        return {"content": None, "og_image": None, "full_html": None}
+        return {"content": None, "og_image": None, "full_html": None, "paywalled": False}
     except Exception as e:
         # Catch potential BeautifulSoup errors or others
         print(f"Error processing content/og:image from {url}: {e}")
         # Still return content if it was extracted before the error
-        return {"content": content, "og_image": None, "full_html": None}
+        return {"content": content, "og_image": None, "full_html": None, "paywalled": False}
 
 
 def scrape_single_article_details(article_url):
@@ -386,7 +483,7 @@ def scrape_single_article_details(article_url):
         article_url (str): The URL of the article to scrape.
 
     Returns:
-        dict: {'title', 'raw_content', 'image_url', 'full_content_html', 'error'} (each str|None)
+        dict: {'title', 'raw_content', 'image_url', 'full_content_html', 'full_content_paywalled', 'error'}
               'error' key will be present if fetching/processing failed.
     """
     print(f"Attempting to scrape single article: {article_url}")
@@ -394,6 +491,7 @@ def scrape_single_article_details(article_url):
     raw_content = None
     final_image_url = None
     full_content_html = None
+    full_content_paywalled = False
     error_message = None
 
     try:
@@ -403,6 +501,7 @@ def scrape_single_article_details(article_url):
         raw_content = fetch_result["content"]
         og_image_url = fetch_result["og_image"]
         full_content_html = fetch_result.get("full_html")
+        full_content_paywalled = fetch_result.get("paywalled", False)
 
         if not raw_content:
             # fetch_article_content_and_og_image might have already logged, but good to have a specific error here
@@ -456,5 +555,6 @@ def scrape_single_article_details(article_url):
         "raw_content": raw_content,
         "image_url": final_image_url,
         "full_content_html": full_content_html,
+        "full_content_paywalled": full_content_paywalled,
         "error": error_message,
     }

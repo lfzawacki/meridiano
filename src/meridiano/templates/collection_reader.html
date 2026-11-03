@@ -40,6 +40,7 @@
             </header>
 
             {% if article.full_content_html %}
+                {% include '_paywall_notice.html' %}
                 <div class="full-article-content">{{ article.full_content_html | safe }}</div>
             {% else %}
                 {% if article.image_url %}

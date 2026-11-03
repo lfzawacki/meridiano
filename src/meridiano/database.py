@@ -96,6 +96,7 @@ def _article_to_dict(article: Article) -> Dict[str, Any]:
             "feed_profile",
             "full_content_html",
             "full_content_fetched_at",
+            "full_content_paywalled",
         }
     )
 
@@ -244,6 +245,7 @@ def add_article(
     feed_profile: str,
     image_url: Optional[str] = None,
     full_content_html: Optional[str] = None,
+    full_content_paywalled: Optional[bool] = None,
 ) -> Optional[int]:
     """Adds a new article with optional image URL and full-article HTML."""
     with get_session() as session:
@@ -275,6 +277,7 @@ def add_article(
                 fetched_at=datetime.now(),
                 full_content_html=full_content_html,
                 full_content_fetched_at=datetime.now() if full_content_html else None,
+                full_content_paywalled=full_content_paywalled if full_content_html else None,
             )
             session.add(article)
             session.commit()
@@ -325,28 +328,41 @@ def get_articles_missing_full_content(
     limit: int = 1000,
     include_attempted: bool = False,
     include_stored: bool = False,
+    feed_source: Optional[str] = None,
+    unchecked_paywall: bool = False,
 ) -> List[Dict[str, Any]]:
     """Articles without full-article HTML, newest first.
 
     By default an article whose fetch was already attempted (and failed) is
     skipped; ``include_attempted`` retries those too, and ``include_stored``
     returns every article so stored HTML can be fetched again. ``feed_profile``
-    None covers every profile.
+    None covers every profile; ``feed_source`` keeps sources whose name contains
+    it (case-insensitive). ``unchecked_paywall`` returns only articles with stored
+    HTML that was fetched before paywalls were detected, so their flag is unknown.
     """
     with get_session() as session:
         statement = select(Article.id, Article.url, Article.title)
-        if not include_stored:
+        if unchecked_paywall:
+            statement = statement.where(
+                Article.full_content_html.is_not(None), Article.full_content_paywalled.is_(None)
+            )
+        elif not include_stored:
             statement = statement.where(Article.full_content_html.is_(None))
             if not include_attempted:
                 statement = statement.where(Article.full_content_fetched_at.is_(None))
         if feed_profile:
             statement = statement.where(Article.feed_profile == feed_profile)
+        if feed_source:
+            statement = statement.where(Article.feed_source.ilike(f"%{feed_source}%"))
         statement = statement.order_by(desc(Article.fetched_at)).limit(limit)
         return [{"id": row.id, "url": row.url, "title": row.title} for row in session.exec(statement).all()]
 
 
 def update_article_full_content(
-    article_id: int, full_content_html: Optional[str], raw_content: Optional[str] = None
+    article_id: int,
+    full_content_html: Optional[str],
+    raw_content: Optional[str] = None,
+    paywalled: Optional[bool] = None,
 ) -> bool:
     """Stores an article's full HTML and stamps the attempt. Returns False if it is gone.
 
@@ -360,6 +376,7 @@ def update_article_full_content(
             return False
         if full_content_html:
             article.full_content_html = full_content_html
+            article.full_content_paywalled = paywalled
         stored = article.raw_content or ""
         if raw_content and ("Ã" in stored or "Â" in stored):
             article.raw_content = raw_content

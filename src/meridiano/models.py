@@ -58,6 +58,9 @@ class Article(SQLModel, table=True):
     # When a full-content fetch was last attempted (set even if it failed), so the
     # backfill command does not hammer the same unreachable pages on every run.
     full_content_fetched_at: Optional[datetime] = None
+    # The page marks itself subscriber-only (schema.org isAccessibleForFree), so the
+    # stored full article may be only what the paywall lets through.
+    full_content_paywalled: Optional[bool] = None
 
 
 class Brief(SQLModel, table=True):
@@ -87,12 +90,14 @@ class Brief(SQLModel, table=True):
 # Collections models (many-to-many association) --------------------------------
 class CollectionArticle(SQLModel, table=True):
     """Association table between collections and articles."""
+
     collection_id: Optional[int] = Field(default=None, foreign_key="collections.id", primary_key=True)
     article_id: Optional[int] = Field(default=None, foreign_key="articles.id", primary_key=True)
 
 
 class Collection(SQLModel, table=True):
     """Collection of articles created by a user."""
+
     __tablename__ = "collections"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -110,6 +115,7 @@ engine = create_engine(config.DATABASE_URL, echo=False)
 ADDED_COLUMNS = (
     ("articles", "full_content_html", "TEXT", "TEXT"),
     ("articles", "full_content_fetched_at", "TIMESTAMP", "DATETIME"),
+    ("articles", "full_content_paywalled", "BOOLEAN", "BOOLEAN"),
 )
 
 

@@ -1,6 +1,7 @@
 # simple-meridian/run_briefing.py
 
 import argparse
+import html
 import importlib
 import json
 import os
@@ -112,7 +113,9 @@ def scrape_articles(feed_profile, rss_feeds):  # Added params
 
         for entry in feed.entries:
             url = entry.get("link")
-            title = entry.get("title", "No Title")
+            # Some feeds (e.g. The Verge) double-escape entities, so feedparser
+            # hands back literal "&#8217;" — unescape to get the real characters.
+            title = html.unescape(entry.get("title", "No Title"))
             published_parsed = entry.get("published_parsed")
             published_date = datetime(*published_parsed[:6]) if published_parsed else datetime.now()
             feed_source = feed.feed.get("title", feed_url)

@@ -120,6 +120,66 @@ class TestGetAllArticles:
         assert len(articles) == 3
 
 
+class TestGetAllArticlesSorting:
+    """Tests for single and multi-key sorting of articles."""
+
+    @pytest.fixture
+    def scored_articles(self):
+        """Creates articles with known impact scores, dates and feed profiles."""
+        from datetime import datetime
+
+        from meridiano.models import Article
+
+        rows = [
+            ("older-high", 9, datetime(2024, 1, 1), "tech"),
+            ("newer-high", 9, datetime(2024, 3, 1), "brasil"),
+            ("newer-low", 2, datetime(2024, 4, 1), "tech"),
+        ]
+        with get_session() as session:
+            for title, score, published, profile in rows:
+                session.add(
+                    Article(
+                        url=f"https://example.com/{title}",
+                        title=title,
+                        published_date=published,
+                        feed_source="Test Feed",
+                        raw_content="content",
+                        feed_profile=profile,
+                        impact_score=score,
+                    )
+                )
+            session.commit()
+
+    def test_sort_by_single_key(self, scored_articles):
+        """A single sort key still works as before."""
+        titles = [a["title"] for a in get_all_articles(sort_by="published_date", direction="desc")]
+        assert titles == ["newer-low", "newer-high", "older-high"]
+
+    def test_sort_by_impact_then_date(self, scored_articles):
+        """Impact score first, published date breaking the tie."""
+        titles = [
+            a["title"] for a in get_all_articles(sort_by=["impact_score", "published_date"], direction=["desc", "asc"])
+        ]
+        assert titles == ["older-high", "newer-high", "newer-low"]
+
+    def test_sort_directions_are_independent_per_key(self, scored_articles):
+        """Flipping only the secondary direction reorders just the tied articles."""
+        titles = [
+            a["title"] for a in get_all_articles(sort_by=["impact_score", "published_date"], direction=["desc", "desc"])
+        ]
+        assert titles == ["newer-high", "older-high", "newer-low"]
+
+    def test_sort_by_feed_profile(self, scored_articles):
+        """Articles can be ordered by feed profile."""
+        profiles = [a["feed_profile"] for a in get_all_articles(sort_by="feed_profile", direction="asc")]
+        assert profiles == ["brasil", "tech", "tech"]
+
+    def test_unknown_sort_field_falls_back_to_published_date(self, scored_articles):
+        """An unknown sort field is ignored, leaving the default ordering."""
+        titles = [a["title"] for a in get_all_articles(sort_by="bogus_column", direction="desc")]
+        assert titles == ["newer-low", "newer-high", "older-high"]
+
+
 class TestFeedProfiles:
     """Tests for feed profile operations."""
 

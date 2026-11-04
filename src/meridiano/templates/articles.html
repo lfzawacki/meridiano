@@ -2,7 +2,7 @@
 <html lang="en">
     {% set title =
         "Articles" ~
-        (current_feed_profile and ("[" ~ current_feed_profile ~ "]") or "") ~
+        (current_feed_profiles and ("[" ~ current_feed_profiles | join(", ") ~ "]") or "") ~
         (current_search_term and (" | Search: " ~ current_search_term) or "") ~
         " (Page " ~ page ~ ")"
     %}
@@ -13,7 +13,7 @@
             {% include 'header.html' %}
             <h2>
                 Articles
-                {% if current_feed_profile %}<span class="profile-badge">{{ current_feed_profile }}</span>{% endif %}
+                {% for profile in current_feed_profiles %}<span class="profile-badge">{{ profile }}</span>{% endfor %}
             </h2>
             {% if total_articles > 0 %}
                 <p>
@@ -25,25 +25,33 @@
             <form method="GET"
                   action="{{ url_for("list_articles") }}"
                   class="filter-sort-form">
-                <input type="hidden" name="sort_by" value="{{ current_sort_by }}">
-                <input type="hidden" name="direction" value="{{ current_direction }}">
+                {% for field in current_sort_by %}
+                    <input type="hidden" name="sort_by" value="{{ field }}">
+                    <input type="hidden" name="direction" value="{{ current_direction[loop.index0] }}">
+                {% endfor %}
                 <input type="hidden" name="start_date" value="{{ current_start_date }}">
                 <input type="hidden" name="end_date" value="{{ current_end_date }}">
                 <input type="hidden" name="preset" value="{{ current_preset }}">
                 <div class="form-row form-section">
                     <div class="profile-filter">
-                        <label for="feed_profile_select">Profile:</label>
-                        <select name="feed_profile"
-                                id="feed_profile_select"
-                                onchange="this.form.submit()">
-                            <option value="" {% if not current_feed_profile %}selected{% endif %}>All Profiles</option>
+                        <span class="profile-filter-label">Profiles:</span>
+                        <div class="chip-group" role="group" aria-label="Filter by feed profile">
                             {% for profile in available_profiles %}
-                                <option value="{{ profile }}"
-                                        {% if current_feed_profile == profile %}selected{% endif %}>
-                                    {{ profile }}
-                                </option>
+                                <label class="chip {% if profile in current_feed_profiles %}chip-active{% endif %}">
+                                    <input type="checkbox"
+                                           name="feed_profile"
+                                           value="{{ profile }}"
+                                           {% if profile in current_feed_profiles %}checked{% endif %}
+                                           onchange="this.form.submit()">
+                                    <span class="chip-label">{{ profile }}</span>
+                                </label>
                             {% endfor %}
-                        </select>
+                            {% if current_feed_profiles %}
+                                <a href="{{ url_for('list_articles', page=1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, search=current_search_term) }}"
+                                   class="chip chip-clear"
+                                   title="Show all profiles"><i class="fas fa-times"></i> All</a>
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="search-filter">
                         <input type="search"
@@ -55,7 +63,7 @@
                             <i class="fas fa-search"></i>
                         </button>
                         {% if current_search_term %}
-                            <a href="{{ url_for('list_articles', page=1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile) }}"
+                            <a href="{{ url_for('list_articles', page=1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profiles) }}"
                                class="btn btn-clear-search"
                                title="Clear Search"><i class="fas fa-times"></i></a>
                         {% endif %}
@@ -82,7 +90,7 @@
                                    name="end_date"
                                    value="{{ current_end_date }}">
                             <button type="submit" class="btn btn-filter"><i class="fas fa-filter"></i> Apply Filters</button>
-                            <a href="{{ url_for('list_articles', sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term) }}"
+                            <a href="{{ url_for('list_articles', sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profiles, search=current_search_term) }}"
                                class="btn btn-clear"><i class="fas fa-times-circle"></i> Clear Dates</a>
                         </div>
                         <div class="preset-buttons">
@@ -94,7 +102,7 @@
                                 "last_12m": "Last 12mo"
                             } %}
                             {% for key, label in presets.items() %}
-                                <a href="{{ url_for('list_articles', preset=key, sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profile, search=current_search_term) }}"
+                                <a href="{{ url_for('list_articles', preset=key, sort_by=current_sort_by, direction=current_direction, feed_profile=current_feed_profiles, search=current_search_term) }}"
                                    class="btn btn-preset {{ 'active' if current_preset == key else '' }}">{{ label }}</a>
                             {% endfor %}
                         </div>
@@ -102,14 +110,21 @@
                 </div>
                 <div class="sort-controls form-section">
                     Sort by:
-                    {% set sort_fields = {"published_date": "Published Date", "impact_score": "Impact Score"} %}
-                    {% for field, label in sort_fields.items() %}
-                        {% set is_active = (current_sort_by == field) %}
-                        {% set next_direction = 'asc' if (is_active and current_direction == 'desc') else 'desc' %}
-                        <a href="{{ url_for('list_articles', page=1, sort_by=field, direction=next_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
-                           class="sort-link {{ 'active' if is_active else '' }}">{{ label }}
-                            {% if is_active %}<span class="sort-indicator">{{ '▲' if current_direction == 'asc' else '▼' }}</span>{% endif %}
-                        </a>
+                    {% for option in sort_options %}
+                        <span class="sort-item {{ 'active' if option.active else '' }}">
+                            <a href="{{ url_for('list_articles', page=1, sort_by=option.toggle_sort_by, direction=option.toggle_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profiles, search=current_search_term) }}"
+                               class="sort-link {{ 'active' if option.active else '' }}"
+                               title="{{ 'Reverse this sort key' if option.active else 'Add as a sort key' }}">
+                                {% if option.active %}<span class="sort-rank">{{ option.rank }}</span>{% endif %}
+                                {{ option.label }}
+                                {% if option.active %}<span class="sort-indicator">{{ '▲' if option.direction == 'asc' else '▼' }}</span>{% endif %}
+                            </a>
+                            {% if option.active %}
+                                <a href="{{ url_for('list_articles', page=1, sort_by=option.remove_sort_by, direction=option.remove_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profiles, search=current_search_term) }}"
+                                   class="sort-remove"
+                                   title="{{ 'Remove this sort key' if option.remove_sort_by else 'Clear the sort and go back to the default' }}"><i class="fas fa-times"></i></a>
+                            {% endif %}
+                        </span>
                     {% endfor %}
                 </div>
             </form>
@@ -121,14 +136,14 @@
             {% if total_pages > 1 %}
                 <div class="pagination">
                     {% if page > 1 %}
-                        <a href="{{ url_for('list_articles', page=page-1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
+                        <a href="{{ url_for('list_articles', page=page-1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profiles, search=current_search_term) }}"
                            class="page-link prev"><i class="fas fa-chevron-left"></i> Previous</a>
                     {% else %}
                         <span class="page-link disabled prev"><i class="fas fa-chevron-left"></i> Previous</span>
                     {% endif %}
                     <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
                     {% if page < total_pages %}
-                        <a href="{{ url_for('list_articles', page=page+1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profile, search=current_search_term) }}"
+                        <a href="{{ url_for('list_articles', page=page+1, sort_by=current_sort_by, direction=current_direction, start_date=current_start_date, end_date=current_end_date, preset=current_preset, feed_profile=current_feed_profiles, search=current_search_term) }}"
                            class="page-link next">Next <i class="fas fa-chevron-right"></i></a>
                     {% else %}
                         <span class="page-link disabled next">Next <i class="fas fa-chevron-right"></i></span>

@@ -7,6 +7,15 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+
+def _env_int(name, default):
+    """Reads an integer environment variable, falling back to the default when unset or invalid."""
+    try:
+        return int(os.getenv(name, default))
+    except ValueError:
+        return default
+
+
 # Used in process_articles (operates globally, so uses default)
 PROMPT_ARTICLE_SUMMARY = """
 Summarize the key points of this news article objectively in 2-4 sentences.
@@ -82,7 +91,7 @@ DEFAULT_FEED_PROFILE = "default"
 
 # --- RSS output feeds (/<profile>.rss) ---
 # How many articles each profile's RSS feed exposes (newest first).
-RSS_MAX_ITEMS = int(os.getenv("RSS_MAX_ITEMS", 50))
+RSS_MAX_ITEMS = _env_int("RSS_MAX_ITEMS", 50)
 # Absolute base URL of this instance, used for the feed's self/channel links.
 # Unset: derived from the incoming request's Host header.
 RSS_BASE_URL = os.getenv("RSS_BASE_URL") or None

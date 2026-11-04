@@ -32,7 +32,13 @@ embedding_client = {
 }
 
 
-def call_deepseek_chat(prompt, model=config.LLM_CHAT_MODEL, system_prompt=None):
+# A reasoning model that exhausts its completion budget while still thinking returns
+# an empty string with finish_reason="length" instead of raising. Retrying once with a
+# bigger budget is the only way to tell that apart from a genuinely empty answer.
+EMPTY_RESPONSE_RETRY_FACTOR = 2
+
+
+def call_deepseek_chat(prompt, model=config.LLM_CHAT_MODEL, system_prompt=None, max_tokens=None):
     """Calls the LLM API (Deepseek, Ollama, etc)."""
     messages = []
     if system_prompt:
@@ -40,10 +46,12 @@ def call_deepseek_chat(prompt, model=config.LLM_CHAT_MODEL, system_prompt=None):
 
     messages.append({"role": "user", "content": prompt})
 
+    budget = max_tokens or config.LLM_MAX_TOKENS
+
     completion_kwargs = {
         "model": model,
         "messages": messages,
-        "max_tokens": 2048,
+        "max_tokens": budget,
         "temperature": 0.7,
     }
 
@@ -61,14 +69,31 @@ def call_deepseek_chat(prompt, model=config.LLM_CHAT_MODEL, system_prompt=None):
             completion_kwargs["api_base"] = ollama_base
             # print(f"DEBUG: Using Ollama API Base: {ollama_base}")
 
-    try:
-        response = litellm.completion(**completion_kwargs)
-        return response["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        print(f"Error calling Deepseek Chat API: {e}")
-        # Implement retry logic or better error handling here if needed
-        time.sleep(1)  # Basic backoff
-        return None
+    for attempt in range(2):
+        completion_kwargs["max_tokens"] = budget
+        try:
+            response = litellm.completion(**completion_kwargs)
+        except Exception as e:
+            print(f"Error calling Deepseek Chat API: {e}")
+            # Implement retry logic or better error handling here if needed
+            time.sleep(1)  # Basic backoff
+            return None
+
+        choice = response["choices"][0]
+        content = (choice["message"].get("content") or "").strip()
+        if content:
+            return content
+
+        finish_reason = choice.get("finish_reason")
+        if finish_reason != "length" or attempt:
+            print(f"Warning: LLM returned an empty response (finish_reason={finish_reason}).")
+            return None
+
+        # The whole budget went to reasoning tokens; nothing was left to answer with.
+        budget *= EMPTY_RESPONSE_RETRY_FACTOR
+        print(f"LLM spent its entire completion budget reasoning. Retrying with max_tokens={budget}.")
+
+    return None
 
 
 def get_deepseek_embedding(text, model=config.EMBEDDING_MODEL):
@@ -90,6 +115,60 @@ def get_deepseek_embedding(text, model=config.EMBEDDING_MODEL):
     except Exception as e:
         print(f"Error calling Embedding API: {e}")
         return None
+
+
+# --- Brief Sources ---
+
+# Cluster analyses open with a `TOPIC: ...` line that names the story. It is split
+# off before the analysis reaches synthesis, so it never lands in the brief text --
+# it only becomes a heading in the source list under the brief.
+TOPIC_LINE_RE = re.compile(r"^\s*\**\s*TOPIC\s*:?\**\s*(.+?)\s*$", re.IGNORECASE)
+
+# How many summaries of a cluster are shown to the model, and how many clusters
+# reach the final synthesis prompt.
+MAX_SUMMARIES_PER_CLUSTER = 10
+MAX_CLUSTERS_IN_BRIEF = 5
+
+
+def split_topic_line(analysis):
+    """Pulls a leading 'TOPIC: ...' line off a cluster analysis.
+
+    Returns (topic or None, analysis without that line). Models that ignore the
+    instruction simply yield (None, analysis).
+    """
+    lines = analysis.lstrip().split("\n")
+    match = TOPIC_LINE_RE.match(lines[0]) if lines else None
+    if not match:
+        return None, analysis
+
+    topic = match.group(1).strip().strip("*").strip('"').strip()
+    return (topic or None), "\n".join(lines[1:]).lstrip()
+
+
+def build_article_links(clusters):
+    """Builds the BriefArticle rows for the clusters that reached the brief.
+
+    Only the articles shown to the model are listed, so the source list never
+    credits an article the analysis never saw. An article that landed in two
+    clusters is attributed to the first one.
+    """
+    links = []
+    seen = set()
+
+    for index, cluster in enumerate(clusters):
+        for article in cluster["referenced_articles"]:
+            article_id = article["id"]
+            if article_id in seen:
+                continue
+            seen.add(article_id)
+            links.append(
+                {
+                    "article_id": article_id,
+                    "cluster_index": index,
+                    "cluster_topic": cluster["topic"],
+                }
+            )
+    return links
 
 
 # --- Core Functions ---
@@ -367,6 +446,9 @@ def generate_brief(feed_profile, effective_config):
         "PROMPT_CLUSTER_ANALYSIS",  # Look for this constant
         config.PROMPT_CLUSTER_ANALYSIS,  # Fallback to default if not found
     )
+    # The topic rule lives outside the template so it still applies to the feed
+    # profiles that override PROMPT_CLUSTER_ANALYSIS.
+    cluster_topic_rule = getattr(effective_config, "PROMPT_CLUSTER_TOPIC_RULE", config.PROMPT_CLUSTER_TOPIC_RULE)
     print(f"DEBUG: Using Cluster Analysis Prompt Template:\n'''{cluster_analysis_prompt_template[:100]}...'''")  # Debug
 
     for i in range(n_clusters):  # Use the actual n_clusters determined
@@ -374,26 +456,36 @@ def generate_brief(feed_profile, effective_config):
         if len(cluster_indices) == 0:
             continue  # Skip empty clusters
 
-        cluster_summaries = [summaries[idx] for idx in cluster_indices]
-        print(f"  Analyzing Cluster {i} ({len(cluster_summaries)} articles)")
+        cluster_articles = [articles[idx] for idx in cluster_indices]
+        # Only the articles actually shown to the model are credited as sources.
+        referenced_articles = cluster_articles[:MAX_SUMMARIES_PER_CLUSTER]
+        print(f"  Analyzing Cluster {i} ({len(cluster_articles)} articles)")
 
-        MAX_SUMMARIES_PER_CLUSTER = 10  # Consider making this configurable too?
-        cluster_summaries_text = "\n\n".join([f"- {s}" for s in cluster_summaries[:MAX_SUMMARIES_PER_CLUSTER]])
+        cluster_summaries_text = "\n\n".join(
+            [f"- {summaries[idx]}" for idx in cluster_indices[:MAX_SUMMARIES_PER_CLUSTER]]
+        )
 
         # *** Format the chosen prompt template ***
         analysis_prompt = cluster_analysis_prompt_template.format(
             cluster_summaries_text=cluster_summaries_text, feed_profile=feed_profile
         )
+        analysis_prompt = f"{analysis_prompt}\n{cluster_topic_rule}"
 
         # *** Call LLM with the formatted prompt ***
         # System prompt could also be configurable
         cluster_analysis = call_deepseek_chat(analysis_prompt, model=chat_model)
 
         if cluster_analysis:
+            topic, cluster_analysis = split_topic_line(cluster_analysis)
             # (Consider adding more robust filtering of non-analysis responses)
-            if "unrelated" not in cluster_analysis.lower() or len(cluster_summaries) > 2:
+            if "unrelated" not in cluster_analysis.lower() or len(cluster_articles) > 2:
                 cluster_analyses.append(
-                    {"topic": f"Cluster {i + 1}", "analysis": cluster_analysis, "size": len(cluster_summaries)}
+                    {
+                        "topic": topic,
+                        "analysis": cluster_analysis,
+                        "size": len(cluster_articles),
+                        "referenced_articles": referenced_articles,
+                    }
                 )
         time.sleep(1)  # Rate limiting
     # --- End Analyze each cluster ---
@@ -411,8 +503,10 @@ def generate_brief(feed_profile, effective_config):
     )  # Fallback
     print(f"DEBUG: Using Brief Synthesis Prompt Template:\n'''{brief_synthesis_prompt_template[:100]}...'''")
 
+    top_clusters = cluster_analyses[:MAX_CLUSTERS_IN_BRIEF]
+
     cluster_analyses_text = ""
-    for i, cluster in enumerate(cluster_analyses[:5]):
+    for i, cluster in enumerate(top_clusters):
         cluster_analyses_text += (
             f"--- Cluster {i + 1} ({cluster['size']} articles) ---\nAnalysis: {cluster['analysis']}\n\n"
         )
@@ -423,7 +517,10 @@ def generate_brief(feed_profile, effective_config):
     final_brief_md = call_deepseek_chat(synthesis_prompt, model=chat_model)
 
     if final_brief_md:
-        database.save_brief(final_brief_md, article_ids, feed_profile)
+        # Only the clusters that reached the brief are credited as its sources.
+        database.save_brief(
+            final_brief_md, article_ids, feed_profile, article_links=build_article_links(top_clusters)
+        )
         print(f"--- Brief Generation Finished Successfully [{feed_profile}] ---")
     else:
         print(f"--- Brief Generation Failed [{feed_profile}]: Could not synthesize final brief. ---")

@@ -26,7 +26,9 @@ from meridiano.database import (
     get_all_articles,
     get_article_by_id,
     get_article_count_for_collection,
+    get_articles_by_ids,
     get_articles_for_collection,
+    get_brief_article_links,
     get_brief_by_id,
     get_collection_by_id,
     get_collections,
@@ -221,6 +223,168 @@ class TestSaveBrief:
         retrieved = get_brief_by_id(brief_id)
         assert retrieved is not None
         assert retrieved["contributing_article_ids"] == json.dumps([])
+
+
+class TestGetArticlesByIds:
+    """Tests for the bulk article lookup used by the brief source list."""
+
+    def _add(self, sample_article_data, suffix, title):
+        data = {**sample_article_data, "url": f"https://example.com/a{suffix}", "title": title}
+        return add_article(
+            data["url"],
+            data["title"],
+            data["published_date"],
+            data["feed_source"],
+            data["raw_content"],
+            data["feed_profile"],
+            data["image_url"],
+        )
+
+    def test_returns_articles_in_requested_order(self, sample_article_data):
+        """Test that results follow the id order given, not insertion order."""
+        first = self._add(sample_article_data, 1, "First")
+        second = self._add(sample_article_data, 2, "Second")
+
+        results = get_articles_by_ids([second, first])
+
+        assert [a["title"] for a in results] == ["Second", "First"]
+
+    def test_skips_missing_ids(self, sample_article_data):
+        """Test that ids with no row are dropped instead of raising."""
+        existing = self._add(sample_article_data, 1, "First")
+
+        results = get_articles_by_ids([existing, 999999])
+
+        assert [a["id"] for a in results] == [existing]
+
+    def test_deduplicates_ids(self, sample_article_data):
+        """Test that a repeated id yields a single row."""
+        existing = self._add(sample_article_data, 1, "First")
+
+        results = get_articles_by_ids([existing, existing])
+
+        assert len(results) == 1
+
+    def test_empty_input(self):
+        """Test that no ids means no query and no rows."""
+        assert get_articles_by_ids([]) == []
+
+
+class TestBriefArticleLinks:
+    """Tests for the source links recorded alongside a brief."""
+
+    @pytest.fixture
+    def scored_sources(self):
+        """Creates source articles with known impact scores, keyed by score."""
+        from datetime import datetime
+
+        from meridiano.models import Article
+
+        ids = {}
+        with get_session() as session:
+            for score in (3, 7, 9, None):
+                article = Article(
+                    url=f"https://example.com/src-{score}",
+                    title=f"Score {score}",
+                    published_date=datetime(2024, 1, 1),
+                    feed_source="Test Feed",
+                    raw_content="content",
+                    feed_profile="test",
+                    impact_score=score,
+                )
+                session.add(article)
+                session.commit()
+                session.refresh(article)
+                ids[score] = article.id
+        return ids
+
+    def test_save_brief_persists_article_links(self, scored_sources):
+        """Test that article links are written and read back in cluster order."""
+        first, second = scored_sources[9], scored_sources[7]
+        links = [
+            {"article_id": second, "cluster_index": 1, "cluster_topic": "Second Topic"},
+            {"article_id": first, "cluster_index": 0, "cluster_topic": "First Topic"},
+        ]
+
+        brief_id = save_brief("# Brief", [first, second], "test", article_links=links)
+
+        stored = get_brief_article_links(brief_id)
+        assert [link["article_id"] for link in stored] == [first, second]
+        assert [link["cluster_topic"] for link in stored] == ["First Topic", "Second Topic"]
+
+    def test_links_are_ranked_by_impact_within_a_cluster(self, scored_sources):
+        """Test that the strongest story in a cluster is listed first."""
+        links = [
+            {"article_id": scored_sources[3], "cluster_index": 0, "cluster_topic": "Topic"},
+            {"article_id": scored_sources[9], "cluster_index": 0, "cluster_topic": "Topic"},
+            {"article_id": scored_sources[7], "cluster_index": 0, "cluster_topic": "Topic"},
+        ]
+
+        brief_id = save_brief("# Brief", [], "test", article_links=links)
+
+        stored = get_brief_article_links(brief_id)
+        assert [link["article_id"] for link in stored] == [
+            scored_sources[9],
+            scored_sources[7],
+            scored_sources[3],
+        ]
+
+    def test_unscored_articles_sort_last(self, scored_sources):
+        """Test that a NULL impact score does not outrank a real one."""
+        links = [
+            {"article_id": scored_sources[None], "cluster_index": 0},
+            {"article_id": scored_sources[3], "cluster_index": 0},
+        ]
+
+        brief_id = save_brief("# Brief", [], "test", article_links=links)
+
+        stored = get_brief_article_links(brief_id)
+        assert [link["article_id"] for link in stored] == [scored_sources[3], scored_sources[None]]
+
+    def test_cluster_order_beats_impact_score(self, scored_sources):
+        """Test that ranking happens inside a cluster, never across clusters."""
+        links = [
+            {"article_id": scored_sources[3], "cluster_index": 0, "cluster_topic": "First"},
+            {"article_id": scored_sources[9], "cluster_index": 1, "cluster_topic": "Second"},
+        ]
+
+        brief_id = save_brief("# Brief", [], "test", article_links=links)
+
+        stored = get_brief_article_links(brief_id)
+        assert [link["article_id"] for link in stored] == [scored_sources[3], scored_sources[9]]
+
+    def test_save_brief_without_links(self):
+        """Test that omitting links leaves the brief with no source rows."""
+        brief_id = save_brief("# Brief", [1, 2], "test")
+
+        assert get_brief_article_links(brief_id) == []
+
+    def test_links_are_scoped_to_their_brief(self, scored_sources):
+        """Test that one brief's links never leak into another's source list."""
+        first_article, second_article = scored_sources[9], scored_sources[7]
+        first = save_brief("# One", [], "test", article_links=[{"article_id": first_article, "cluster_index": 0}])
+        second = save_brief("# Two", [], "test", article_links=[{"article_id": second_article, "cluster_index": 0}])
+
+        assert [link["article_id"] for link in get_brief_article_links(first)] == [first_article]
+        assert [link["article_id"] for link in get_brief_article_links(second)] == [second_article]
+
+    def test_missing_topic_is_stored_as_none(self, scored_sources):
+        """Test that a model that ignored the TOPIC line yields an untitled group."""
+        article_id = scored_sources[9]
+        brief_id = save_brief("# Brief", [], "test", article_links=[{"article_id": article_id, "cluster_index": 0}])
+
+        assert get_brief_article_links(brief_id)[0]["cluster_topic"] is None
+
+    def test_link_to_a_deleted_article_is_dropped(self, scored_sources):
+        """Test that a source which no longer exists is not reported."""
+        links = [
+            {"article_id": scored_sources[9], "cluster_index": 0},
+            {"article_id": 999999, "cluster_index": 0},
+        ]
+
+        brief_id = save_brief("# Brief", [], "test", article_links=links)
+
+        assert [link["article_id"] for link in get_brief_article_links(brief_id)] == [scored_sources[9]]
 
 
 class TestCollections:

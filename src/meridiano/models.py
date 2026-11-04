@@ -78,6 +78,21 @@ class Brief(SQLModel, table=True):
     feed_profile: str = Field(default="default", index=True)
 
 
+class BriefArticle(SQLModel, table=True):
+    """Association between a brief and the articles it was built from.
+
+    Only the articles actually shown to the LLM are recorded, so the source list
+    under a brief never claims an article the analysis never saw. ``cluster_index``
+    keeps them in the order the clusters were synthesized; ``cluster_topic`` is the
+    heading the model gave that cluster, and is None when it ignored the request.
+    """
+
+    brief_id: Optional[int] = Field(default=None, foreign_key="briefs.id", primary_key=True)
+    article_id: Optional[int] = Field(default=None, foreign_key="articles.id", primary_key=True)
+    cluster_index: Optional[int] = None
+    cluster_topic: Optional[str] = None
+
+
 # Collections models (many-to-many association) --------------------------------
 class CollectionArticle(SQLModel, table=True):
     """Association table between collections and articles."""

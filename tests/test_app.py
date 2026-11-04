@@ -4,6 +4,7 @@ Tests for Flask application routes.
 
 import os
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -14,7 +15,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 # Import app after setting up test database
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 from meridiano.app import app
-from meridiano.database import add_article, create_collection, get_collection_by_id
+from meridiano.database import (
+    add_article,
+    create_collection,
+    get_collection_by_id,
+    save_brief,
+)
 
 
 @pytest.fixture
@@ -270,6 +276,168 @@ class TestCollectionsRoutes:
         response = client.post("/collection/9999/toggle_archive", follow_redirects=True)
         assert response.status_code == 200
         assert b"Collection with ID 9999 not found" in response.data
+
+
+class TestViewBriefRoute:
+    """Tests for the brief page and the source list underneath it."""
+
+    def _seed_articles(self, sample_article_data, count):
+        """Adds ``count`` articles and returns their ids."""
+        article_ids = []
+        with app.app_context():
+            for i in range(1, count + 1):
+                article_ids.append(
+                    add_article(
+                        f"https://example.com/src{i}",
+                        f"Source Article {i}",
+                        sample_article_data["published_date"],
+                        sample_article_data["feed_source"],
+                        sample_article_data["raw_content"],
+                        sample_article_data["feed_profile"],
+                        sample_article_data["image_url"],
+                    )
+                )
+        return article_ids
+
+    def test_brief_not_found(self, client):
+        """Test that an unknown brief id is a 404."""
+        assert client.get("/brief/9999").status_code == 404
+
+    def test_cluster_topics_are_not_rendered(self, client, sample_article_data):
+        """Test that clustered sources collapse into one list with no topic headings."""
+        first, second = self._seed_articles(sample_article_data, 2)
+        with app.app_context():
+            brief_id = save_brief(
+                "# Brief",
+                [first, second],
+                "test",
+                article_links=[
+                    {"article_id": first, "cluster_index": 0, "cluster_topic": "Chips And Fabs"},
+                    {"article_id": second, "cluster_index": 1, "cluster_topic": "Cloud Outages"},
+                ],
+            )
+
+        response = client.get(f"/brief/{brief_id}")
+
+        assert response.status_code == 200
+        assert b"Chips And Fabs" not in response.data
+        assert b"Cloud Outages" not in response.data
+        assert response.data.count(b'<ul class="article-list">') == 1
+        assert b"Source Article 1" in response.data
+        assert b"Source Article 2" in response.data
+
+    def test_clustered_sources_are_ranked_by_impact_across_clusters(self, client, sample_article_data):
+        """Test that impact rank wins over cluster order in the flattened list."""
+        article_ids = self._seed_articles(sample_article_data, 3)
+        with app.app_context():
+            from meridiano.models import Article, get_session
+
+            with get_session() as session:
+                for article_id, score in zip(article_ids, [2, 9, None]):
+                    session.get(Article, article_id).impact_score = score
+                session.commit()
+            brief_id = save_brief(
+                "# Brief",
+                article_ids,
+                "test",
+                article_links=[
+                    {"article_id": article_ids[0], "cluster_index": 0, "cluster_topic": "First"},
+                    {"article_id": article_ids[2], "cluster_index": 0, "cluster_topic": "First"},
+                    {"article_id": article_ids[1], "cluster_index": 1, "cluster_topic": "Second"},
+                ],
+            )
+
+        html = client.get(f"/brief/{brief_id}").get_data(as_text=True)
+
+        positions = [html.index(f"Source Article {i}") for i in (2, 1, 3)]
+        assert positions == sorted(positions), "expected impact 9, then 2, then unscored"
+
+    def test_legacy_brief_falls_back_to_contributing_ids(self, client, sample_article_data):
+        """Test that a brief predating source tracking still lists its articles."""
+        article_ids = self._seed_articles(sample_article_data, 2)
+        with app.app_context():
+            brief_id = save_brief("# Brief", article_ids, "test")
+
+        response = client.get(f"/brief/{brief_id}")
+
+        assert response.status_code == 200
+        assert b"Source Article 1" in response.data
+        assert b"Source Article 2" in response.data
+
+    def test_legacy_sources_are_ranked_by_impact(self, client, sample_article_data):
+        """Test that a brief with no clusters still leads with its strongest story."""
+        article_ids = self._seed_articles(sample_article_data, 3)
+        with app.app_context():
+            from meridiano.models import Article, get_session
+
+            with get_session() as session:
+                for article_id, score in zip(article_ids, [2, 9, None]):
+                    session.get(Article, article_id).impact_score = score
+                session.commit()
+            brief_id = save_brief("# Brief", article_ids, "test")
+
+        html = client.get(f"/brief/{brief_id}").get_data(as_text=True)
+
+        positions = [html.index(f"Source Article {i}") for i in (2, 1, 3)]
+        assert positions == sorted(positions), "expected impact 9, then 2, then unscored"
+
+    def test_source_list_is_capped(self, client, sample_article_data):
+        """Test that a huge legacy id list is trimmed and the total is disclosed."""
+        article_ids = self._seed_articles(sample_article_data, 5)
+        with app.app_context():
+            brief_id = save_brief("# Brief", article_ids, "test")
+
+        with patch("meridiano.app.config.BRIEF_MAX_SOURCES", 2):
+            response = client.get(f"/brief/{brief_id}")
+
+        assert response.status_code == 200
+        assert b"(2 of 5)" in response.data
+        assert b"Source Article 3" not in response.data
+
+    def test_sources_open_by_default(self, client, sample_article_data):
+        """Test that the source list is expanded for tracked and legacy briefs alike."""
+        (article_id,) = self._seed_articles(sample_article_data, 1)
+        with app.app_context():
+            tracked = save_brief(
+                "# Brief",
+                [article_id],
+                "test",
+                article_links=[{"article_id": article_id, "cluster_index": 0, "cluster_topic": "Topic"}],
+            )
+            legacy = save_brief("# Brief", [article_id], "test")
+
+        for brief_id in (tracked, legacy):
+            assert b"<details class=\"brief-sources\" open>" in client.get(f"/brief/{brief_id}").data
+
+    def test_brief_without_sources_omits_the_section(self, client):
+        """Test that a brief with no surviving articles renders no Sources block."""
+        with app.app_context():
+            brief_id = save_brief("# Brief", [], "test")
+
+        response = client.get(f"/brief/{brief_id}")
+
+        assert response.status_code == 200
+        assert b"brief-sources" not in response.data
+
+    def test_deleted_source_article_is_skipped(self, client, sample_article_data):
+        """Test that a link pointing at a removed article does not break the page."""
+        (article_id,) = self._seed_articles(sample_article_data, 1)
+        with app.app_context():
+            brief_id = save_brief(
+                "# Brief",
+                [article_id],
+                "test",
+                article_links=[
+                    {"article_id": article_id, "cluster_index": 0, "cluster_topic": "Topic"},
+                    {"article_id": 999999, "cluster_index": 1, "cluster_topic": "Gone"},
+                ],
+            )
+
+        response = client.get(f"/brief/{brief_id}")
+
+        assert response.status_code == 200
+        assert b"Source Article 1" in response.data
+        assert b"(1)" in response.data
 
 
 class TestHeaderActiveLinks:

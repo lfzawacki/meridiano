@@ -8,12 +8,12 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import text
+from sqlalchemy import nullslast, text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import and_, asc, desc, func, or_, select
 
 from . import config_base as config
-from .models import Article, Brief, Collection, CollectionArticle, get_session
+from .models import Article, Brief, BriefArticle, Collection, CollectionArticle, get_session
 from .models import init_db as model_init_db
 
 logger = logging.getLogger(__name__)
@@ -71,6 +71,29 @@ def get_article_by_id(article_id: int) -> Optional[Dict[str, Any]]:
         statement = select(Article).where(Article.id == article_id)
         article = session.exec(statement).first()
         return _article_to_dict(article) if article else None
+
+
+def get_articles_by_ids(article_ids: List[int]) -> List[Dict[str, Any]]:
+    """Retrieves several articles in one query, in the order the ids were given.
+
+    Duplicate ids yield a single row. Ids with no matching row are skipped
+    silently, so callers can pass stale ids (e.g. from an old brief) without
+    special-casing deleted articles.
+    """
+    if not article_ids:
+        return []
+
+    with get_session() as session:
+        statement = select(Article).where(Article.id.in_(article_ids))
+        found = {article.id: article for article in session.exec(statement).all()}
+
+    ordered = []
+    seen = set()
+    for aid in article_ids:
+        if aid in found and aid not in seen:
+            seen.add(aid)
+            ordered.append(_article_to_dict(found[aid]))
+    return ordered
 
 
 def _article_to_dict(article: Article) -> Dict[str, Any]:
@@ -336,8 +359,18 @@ def get_articles_for_briefing(lookback_hours: int, feed_profile: str) -> List[Di
         return [_article_to_dict(article) for article in articles]
 
 
-def save_brief(brief_markdown: str, contributing_article_ids: List[int], feed_profile: str) -> int:
-    """Saves the generated brief including its feed profile."""
+def save_brief(
+    brief_markdown: str,
+    contributing_article_ids: List[int],
+    feed_profile: str,
+    article_links: Optional[List[Dict[str, Any]]] = None,
+) -> int:
+    """Saves the generated brief including its feed profile.
+
+    ``article_links`` optionally records which articles the brief was built from,
+    as dicts with ``article_id``, ``cluster_index`` and ``cluster_topic`` keys.
+    They are written to ``BriefArticle`` in the same transaction.
+    """
     with get_session() as session:
         ids_json = json.dumps(contributing_article_ids)
         brief = Brief(
@@ -363,8 +396,48 @@ def save_brief(brief_markdown: str, contributing_article_ids: List[int], feed_pr
         session.add(brief)
         session.commit()
         session.refresh(brief)  # Get the ID
+
+        if article_links:
+            for link in article_links:
+                session.add(
+                    BriefArticle(
+                        brief_id=brief.id,
+                        article_id=link["article_id"],
+                        cluster_index=link.get("cluster_index"),
+                        cluster_topic=link.get("cluster_topic"),
+                    )
+                )
+            session.commit()
+
         print(f"Saved brief [{feed_profile}] with ID: {brief.id}")
         return brief.id
+
+
+def get_brief_article_links(brief_id: int) -> List[Dict[str, Any]]:
+    """Retrieves the article links recorded for a brief, grouped by cluster.
+
+    Clusters keep the order the brief synthesized them in; within a cluster the
+    articles are ranked by impact score, highest first. Unscored articles sort
+    last rather than ahead of everything, which is what a NULL would otherwise do
+    under DESC on some backends.
+
+    Links whose article has since been deleted are dropped by the join, since a
+    source that cannot be rendered is not worth reporting.
+    """
+    with get_session() as session:
+        statement = (
+            select(BriefArticle)
+            .join(Article, Article.id == BriefArticle.article_id)
+            .where(BriefArticle.brief_id == brief_id)
+            .order_by(
+                asc(BriefArticle.cluster_index),
+                nullslast(desc(Article.impact_score)),
+                asc(BriefArticle.article_id),
+            )
+        )
+        links = session.exec(statement).all()
+
+        return [link.model_dump(include={"brief_id", "article_id", "cluster_index", "cluster_topic"}) for link in links]
 
 
 def get_all_briefs_metadata(

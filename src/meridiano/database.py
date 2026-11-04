@@ -315,6 +315,22 @@ def update_article_processing(article_id: int, processed_content: str, embedding
             session.commit()
 
 
+def get_latest_profile_articles(feed_profile: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """Gets the newest articles of a profile (for RSS output), regardless of processing status.
+
+    Ordered by published_date, falling back to fetched_at when published_date is missing.
+    """
+    with get_session() as session:
+        statement = (
+            select(Article)
+            .where(Article.feed_profile == feed_profile)
+            .order_by(desc(func.coalesce(Article.published_date, Article.fetched_at)), desc(Article.id))
+            .limit(limit)
+        )
+        articles = session.exec(statement).all()
+        return [_article_to_dict(article) for article in articles]
+
+
 def get_articles_for_briefing(lookback_hours: int, feed_profile: str) -> List[Dict[str, Any]]:
     """Gets recently processed articles for a specific feed profile."""
     cutoff_time = datetime.now() - timedelta(hours=lookback_hours)

@@ -333,6 +333,27 @@ class TestCollections:
         retrieved_ids = {a["id"] for a in articles}
         assert retrieved_ids == set(article_ids)
 
+    def test_get_articles_for_collection_pagination(self, sample_article_data):
+        """page/per_page slice the collection, and omitting them returns everything."""
+        coll_id = create_collection("Paged Collection")
+        for i in range(5):
+            data = sample_article_data.copy()
+            data["url"] = f"http://example.com/paged/{i}"
+            add_article_to_collection(coll_id, add_article(**data))
+
+        all_articles = get_articles_for_collection(coll_id)
+        assert len(all_articles) == 5
+
+        first_page = get_articles_for_collection(coll_id, page=1, per_page=2)
+        second_page = get_articles_for_collection(coll_id, page=2, per_page=2)
+        last_page = get_articles_for_collection(coll_id, page=3, per_page=2)
+        assert [a["id"] for a in first_page] == [a["id"] for a in all_articles[:2]]
+        assert [a["id"] for a in second_page] == [a["id"] for a in all_articles[2:4]]
+        assert [a["id"] for a in last_page] == [a["id"] for a in all_articles[4:]]
+
+        # Past the end there is simply nothing left.
+        assert get_articles_for_collection(coll_id, page=99, per_page=2) == []
+
     def test_delete_collection(self, sample_article_data):
         """Test deleting a collection and its associations, but not the articles."""
         # 1. Setup: Create an article and a collection

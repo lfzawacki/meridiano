@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 # Import app after setting up test database
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 from meridiano.app import app
-from meridiano.database import add_article, create_collection, get_collection_by_id
+from meridiano.database import add_article, add_article_to_collection, create_collection, get_collection_by_id
 
 
 @pytest.fixture
@@ -61,6 +61,33 @@ class TestArticlesRoute:
         response = client.get("/articles?page=1")
         assert response.status_code == 200
 
+    def test_articles_route_shows_per_page_dropdown(self, client):
+        """The articles list offers a page size selector."""
+        response = client.get("/articles")
+        assert response.status_code == 200
+        assert b'name="per_page"' in response.data
+        assert b'<option value="50"' in response.data
+
+    def test_articles_route_honours_per_page(self, client):
+        """A valid per_page choice is applied and kept in the page links."""
+        response = client.get("/articles?per_page=50")
+        assert response.status_code == 200
+        assert b'<option value="50" selected' in response.data
+        assert b"per_page=50" in response.data
+
+    def test_articles_route_rejects_unknown_per_page(self, client):
+        """Values outside the offered choices fall back to the default."""
+        response = client.get("/articles?per_page=999")
+        assert response.status_code == 200
+        assert b'value="999"' not in response.data
+        assert b'<option value="15" selected' in response.data
+
+    def test_articles_route_ignores_non_numeric_per_page(self, client):
+        """A non-numeric per_page does not break the page."""
+        response = client.get("/articles?per_page=abc")
+        assert response.status_code == 200
+        assert b'<option value="15" selected' in response.data
+
     def test_articles_route_with_search(self, client):
         """Test articles route with search term."""
         response = client.get("/articles?search=test")
@@ -70,6 +97,47 @@ class TestArticlesRoute:
         """Test articles route with date filters."""
         response = client.get("/articles?start_date=2024-01-01&end_date=2024-01-31")
         assert response.status_code == 200
+
+
+class TestPerPageParsing:
+    """Tests for the articles page size argument."""
+
+    def test_parse_per_page_defaults(self):
+        from meridiano.app import _parse_per_page
+
+        per_page, options, per_page_param = _parse_per_page(None)
+        assert per_page == 15
+        assert per_page in options
+        # The default is implicit, so links do not need to carry it.
+        assert per_page_param is None
+
+    def test_parse_per_page_accepts_offered_choice(self):
+        from meridiano.app import _parse_per_page
+
+        assert _parse_per_page("100")[0] == 100
+        # A non-default size has to travel with the links.
+        assert _parse_per_page("100")[2] == 100
+
+    def test_parse_per_page_rejects_values_outside_the_choices(self):
+        from meridiano.app import _parse_per_page
+
+        assert _parse_per_page("7")[0] == 15
+        assert _parse_per_page("-10")[0] == 15
+        assert _parse_per_page("abc")[0] == 15
+
+    def test_parse_per_page_always_offers_the_configured_default(self):
+        from meridiano import app as app_module
+        from meridiano.app import _parse_per_page
+
+        original = app_module.config.ARTICLES_PER_PAGE
+        app_module.config.ARTICLES_PER_PAGE = 42
+        try:
+            per_page, options, _ = _parse_per_page(None)
+            assert per_page == 42
+            assert 42 in options
+            assert _parse_per_page("42")[0] == 42
+        finally:
+            app_module.config.ARTICLES_PER_PAGE = original
 
 
 class TestAddArticleRoute:
@@ -186,6 +254,58 @@ class TestCollectionsRoutes:
         assert response.status_code == 200
         assert b"Collection name is required." in response.data
         assert b"Collections" in response.data  # Should be back on the collections list page
+
+    def test_view_collection_paginates_articles(self, client, sample_article_data):
+        """A collection larger than the page size is split into pages."""
+        with app.app_context():
+            coll_id = create_collection("Big Collection")
+            for index in range(12):
+                article_id = add_article(**{**sample_article_data, "url": f"https://example.com/a{index}"})
+                add_article_to_collection(coll_id, article_id)
+
+        response = client.get(f"/collection/{coll_id}?per_page=10")
+        assert response.status_code == 200
+        assert b"Showing articles 1 - 10 of 12 total." in response.data
+        assert b"Page 1 of 2" in response.data
+        assert f"/collection/{coll_id}?page=2&amp;per_page=10".encode() in response.data
+
+        response = client.get(f"/collection/{coll_id}?page=2&per_page=10")
+        assert response.status_code == 200
+        assert b"Showing articles 11 - 12 of 12 total." in response.data
+
+    def test_view_collection_shows_per_page_dropdown(self, client, sample_article_data):
+        """The collection page offers the same page size selector as the articles list."""
+        with app.app_context():
+            coll_id = create_collection("Collection With Articles")
+            article_id = add_article(**sample_article_data)
+            add_article_to_collection(coll_id, article_id)
+
+        response = client.get(f"/collection/{coll_id}?per_page=50")
+        assert response.status_code == 200
+        assert b'name="per_page"' in response.data
+        assert b'<option value="50" selected' in response.data
+
+    def test_view_collection_rejects_unknown_per_page(self, client, sample_article_data):
+        """Page sizes outside the offered choices fall back to the default."""
+        with app.app_context():
+            coll_id = create_collection("Collection Default Size")
+            article_id = add_article(**sample_article_data)
+            add_article_to_collection(coll_id, article_id)
+
+        response = client.get(f"/collection/{coll_id}?per_page=999")
+        assert response.status_code == 200
+        assert b'value="999"' not in response.data
+        assert b'<option value="15" selected' in response.data
+
+    def test_view_empty_collection_hides_pagination_controls(self, client):
+        """An empty collection shows neither the selector nor a summary line."""
+        with app.app_context():
+            coll_id = create_collection("Empty Collection")
+
+        response = client.get(f"/collection/{coll_id}")
+        assert response.status_code == 200
+        assert b'name="per_page"' not in response.data
+        assert b"No articles in this collection yet." in response.data
 
     def test_view_collection_not_found(self, client):
         """Test viewing a non-existent collection."""

@@ -31,13 +31,49 @@
 
         <hr>
 
-        <h3>Articles in this collection</h3>
+        <div class="list-controls">
+            <h3>Articles in this collection</h3>
+            {% if total_articles > 0 %}
+                <form method="GET" action="{{ url_for('view_collection', collection_id=collection['id']) }}" class="per-page-form">
+                    <span class="per-page-control">
+                        <label for="per_page">Per page:</label>
+                        <select name="per_page" id="per_page" onchange="this.form.submit()">
+                            {% for option in per_page_options %}
+                                <option value="{{ option }}" {% if option == per_page %}selected{% endif %}>{{ option }}</option>
+                            {% endfor %}
+                        </select>
+                    </span>
+                </form>
+            {% endif %}
+        </div>
+        {% if total_articles > 0 %}
+            <p class="list-summary">
+                Showing articles {{ (page - 1) * per_page + 1 }} - {{ [page * per_page, total_articles] | min }} of {{ total_articles }} total.
+            </p>
+        {% endif %}
         <ul class="article-list">
             {% for article in articles %}
                 {% include '_article_item.html' %}
             {% endfor %}
         </ul>
         <p id="no-articles-message" {% if articles %}style="display: none;"{% endif %}>No articles in this collection yet.</p>
+        {% if total_pages > 1 %}
+            <div class="pagination">
+                {% if page > 1 %}
+                    <a href="{{ url_for('view_collection', collection_id=collection['id'], page=page-1, per_page=per_page_param) }}"
+                       class="page-link prev"><i class="fas fa-chevron-left"></i> Previous</a>
+                {% else %}
+                    <span class="page-link disabled prev"><i class="fas fa-chevron-left"></i> Previous</span>
+                {% endif %}
+                <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
+                {% if page < total_pages %}
+                    <a href="{{ url_for('view_collection', collection_id=collection['id'], page=page+1, per_page=per_page_param) }}"
+                       class="page-link next">Next <i class="fas fa-chevron-right"></i></a>
+                {% else %}
+                    <span class="page-link disabled next">Next <i class="fas fa-chevron-right"></i></span>
+                {% endif %}
+            </div>
+        {% endif %}
 
     </div>
 </body>

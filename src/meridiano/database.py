@@ -6,7 +6,7 @@ This replaces the SQLite-based database.py with modern SQLModel operations.
 import json
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -19,6 +19,60 @@ from .models import init_db as model_init_db
 logger = logging.getLogger(__name__)
 
 ARTICLES_PER_PAGE_DEFAULT = 25
+
+# Columns articles may be sorted by, keyed by the value used in query strings.
+ARTICLE_SORT_COLUMNS = {
+    "published_date": "published_date",
+    "impact_score": "impact_score",
+    "fetched_at": "fetched_at",
+    "feed_profile": "feed_profile",
+    "feed_source": "feed_source",
+}
+
+
+def _build_article_order_by(
+    sort_by: Union[str, List[str], None],
+    direction: Union[str, List[str], None],
+) -> List[Any]:
+    """
+    Builds the ORDER BY clauses for an article query.
+
+    Both arguments accept a single value or a list, allowing multi-key sorting
+    (e.g. sort_by=["impact_score", "published_date"]). Directions are paired
+    positionally with the sort fields; missing entries default to "desc".
+    Unknown or repeated fields are ignored. Article.id is always appended last
+    so pagination stays stable.
+    """
+    if sort_by is None:
+        fields = []
+    elif isinstance(sort_by, str):
+        fields = [sort_by]
+    else:
+        fields = list(sort_by)
+
+    if direction is None:
+        directions = []
+    elif isinstance(direction, str):
+        directions = [direction]
+    else:
+        directions = list(direction)
+
+    clauses = []
+    seen = set()
+    for index, field in enumerate(fields):
+        attribute = ARTICLE_SORT_COLUMNS.get(field)
+        if attribute is None or field in seen:
+            continue
+        seen.add(field)
+        column = getattr(Article, attribute)
+        field_direction = directions[index] if index < len(directions) else "desc"
+        clauses.append(asc(column) if str(field_direction).lower() == "asc" else desc(column))
+
+    if not clauses:
+        clauses.append(desc(Article.published_date))
+
+    clauses.append(desc(Article.id))
+    return clauses
 
 
 def get_db_connection():
@@ -117,9 +171,19 @@ def _brief_to_dict(brief: Brief) -> Dict[str, Any]:
 def _build_article_filters(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
-    feed_profile: Optional[str] = None,
+    feed_profile: Optional[Union[str, List[str]]] = None,
+    impact_op: Optional[str] = None,
+    impact_value: Optional[int] = None,
 ):
-    """Helper for building filter conditions for articles."""
+    """Helper for building filter conditions for articles.
+
+    ``feed_profile`` may be a single profile name or a list of names
+    (multi-select). A list filters with ``IN``; a string filters with ``==``.
+
+    ``impact_op`` is ``"gt"`` / ``"lt"`` / ``"eq"`` (strictly more than, strictly
+    less than, or equal to ``impact_value``) or ``"none"`` for articles without
+    an impact score.
+    """
     filters = []
 
     if start_date:
@@ -127,7 +191,18 @@ def _build_article_filters(
     if end_date:
         filters.append(func.date(Article.published_date) <= func.date(end_date))
     if feed_profile:
-        filters.append(Article.feed_profile == feed_profile)
+        if isinstance(feed_profile, (list, tuple, set)):
+            filters.append(Article.feed_profile.in_(list(feed_profile)))
+        else:
+            filters.append(Article.feed_profile == feed_profile)
+    if impact_op == "none":
+        filters.append(Article.impact_score.is_(None))
+    elif impact_op == "gt" and impact_value is not None:
+        filters.append(Article.impact_score > impact_value)
+    elif impact_op == "lt" and impact_value is not None:
+        filters.append(Article.impact_score < impact_value)
+    elif impact_op == "eq" and impact_value is not None:
+        filters.append(Article.impact_score == impact_value)
 
     return filters
 
@@ -135,12 +210,14 @@ def _build_article_filters(
 def get_all_articles(
     page: int = 1,
     per_page: int = ARTICLES_PER_PAGE_DEFAULT,
-    sort_by: str = "published_date",
-    direction: str = "desc",
+    sort_by: Union[str, List[str]] = "published_date",
+    direction: Union[str, List[str]] = "desc",
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
-    feed_profile: Optional[str] = None,
+    feed_profile: Optional[Union[str, List[str]]] = None,
     search_term: Optional[str] = None,
+    impact_op: Optional[str] = None,
+    impact_value: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
     Fetches articles with filtering, sorting, and full-text search.
@@ -151,7 +228,7 @@ def get_all_articles(
         statement = select(Article)
 
         # Apply basic filters
-        filters = _build_article_filters(start_date, end_date, feed_profile)
+        filters = _build_article_filters(start_date, end_date, feed_profile, impact_op, impact_value)
         if filters:
             statement = statement.where(and_(*filters))
 
@@ -174,18 +251,8 @@ def get_all_articles(
                 )
                 statement = statement.where(search_filter)
 
-        # Apply sorting
-        sort_columns = {
-            "published_date": Article.published_date,
-            "impact_score": Article.impact_score,
-            "fetched_at": Article.fetched_at,
-        }
-
-        sort_column = sort_columns.get(sort_by, Article.published_date)
-        if direction.lower() == "asc":
-            statement = statement.order_by(asc(sort_column), desc(Article.id))
-        else:
-            statement = statement.order_by(desc(sort_column), desc(Article.id))
+        # Apply sorting (one or more keys, applied in the given order)
+        statement = statement.order_by(*_build_article_order_by(sort_by, direction))
 
         # Apply pagination
         offset = (page - 1) * per_page
@@ -198,8 +265,10 @@ def get_all_articles(
 def get_total_article_count(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
-    feed_profile: Optional[str] = None,
+    feed_profile: Optional[Union[str, List[str]]] = None,
     search_term: Optional[str] = None,
+    impact_op: Optional[str] = None,
+    impact_value: Optional[int] = None,
 ) -> int:
     """Returns total count of articles with optional filtering and search."""
     with get_session() as session:
@@ -207,7 +276,7 @@ def get_total_article_count(
         statement = select(func.count(Article.id))
 
         # Apply basic filters
-        filters = _build_article_filters(start_date, end_date, feed_profile)
+        filters = _build_article_filters(start_date, end_date, feed_profile, impact_op, impact_value)
         if filters:
             statement = statement.where(and_(*filters))
 
@@ -500,8 +569,15 @@ def remove_article_from_collection(collection_id: int, article_id: int) -> None:
             session.commit()
 
 
-def get_articles_for_collection(collection_id: int) -> List[Dict[str, Any]]:
-    """Return article dicts for all articles in a collection ordered by fetched_at desc."""
+def get_articles_for_collection(
+    collection_id: int, page: Optional[int] = None, per_page: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """
+    Return article dicts for a collection ordered by fetched_at desc.
+
+    Passing both page and per_page returns only that page; leaving them out
+    returns every article in the collection.
+    """
     with get_session() as session:
         stmt = (
             select(Article)
@@ -509,6 +585,8 @@ def get_articles_for_collection(collection_id: int) -> List[Dict[str, Any]]:
             .where(CollectionArticle.collection_id == collection_id)
             .order_by(desc(Article.fetched_at))
         )
+        if page is not None and per_page is not None:
+            stmt = stmt.offset((max(1, page) - 1) * per_page).limit(per_page)
         articles = session.exec(stmt).all()
         return [_article_to_dict(article) for article in articles]
 

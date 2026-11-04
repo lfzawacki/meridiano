@@ -1,6 +1,14 @@
 function toggleDateFilters() {
-    var content = document.getElementById('date-filter-content');
-    var icon = document.querySelector('.date-filter-toggle .toggle-icon');
+    toggleFilterPanel('date-filter-content', '.date-filter-toggle:not(.impact-filter-toggle) .toggle-icon');
+}
+
+function toggleImpactFilters() {
+    toggleFilterPanel('impact-filter-content', '.impact-filter-toggle .toggle-icon');
+}
+
+function toggleFilterPanel(contentId, iconSelector) {
+    var content = document.getElementById(contentId);
+    var icon = document.querySelector(iconSelector);
     if (content.style.display === 'none' || content.style.display === '') {
         content.style.display = 'block';
         icon.textContent = '-';
@@ -104,6 +112,35 @@ document.addEventListener('DOMContentLoaded', function() {
         if (startDateEl.value || endDateEl.value) {
             toggleDateFilters();
         }
+        // Typing a date replaces the active preset, otherwise the preset wins on submit
+        const presetEl = document.getElementById('preset');
+        [startDateEl, endDateEl].forEach(function(el) {
+            el.addEventListener('change', function() {
+                if (presetEl) presetEl.value = '';
+            });
+        });
+    }
+
+    // Open the impact filter panel when an impact score filter is active
+    const impactScoreEl = document.getElementById('impact_score');
+    if (impactScoreEl && impactScoreEl.value) {
+        toggleImpactFilters();
+    }
+
+    // "more than 10" and "less than 1" can never match, so disable those values
+    const impactOpEl = document.getElementById('impact_op');
+    if (impactOpEl && impactScoreEl) {
+        const syncImpactOptions = function() {
+            const impossible = { gt: '10', lt: '1' }[impactOpEl.value];
+            Array.from(impactScoreEl.options).forEach(function(option) {
+                option.disabled = option.value === impossible;
+            });
+            if (impactScoreEl.selectedOptions[0] && impactScoreEl.selectedOptions[0].disabled) {
+                impactScoreEl.value = '';
+            }
+        };
+        impactOpEl.addEventListener('change', syncImpactOptions);
+        syncImpactOptions();
     }
 
     // Global click handler for closing menus and handling collection actions

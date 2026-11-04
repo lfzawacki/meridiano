@@ -31,6 +31,7 @@ from meridiano.database import (
     get_collection_by_id,
     get_collections,
     get_distinct_feed_profiles,
+    get_total_article_count,
     remove_article_from_collection,
     save_brief,
     toggle_collection_archive_status,
@@ -118,6 +119,113 @@ class TestGetAllArticles:
 
         articles = get_all_articles()
         assert len(articles) == 3
+
+
+class TestGetAllArticlesSorting:
+    """Tests for single and multi-key sorting of articles."""
+
+    @pytest.fixture
+    def scored_articles(self):
+        """Creates articles with known impact scores, dates and feed profiles."""
+        from datetime import datetime
+
+        from meridiano.models import Article
+
+        rows = [
+            ("older-high", 9, datetime(2024, 1, 1), "tech"),
+            ("newer-high", 9, datetime(2024, 3, 1), "brasil"),
+            ("newer-low", 2, datetime(2024, 4, 1), "tech"),
+        ]
+        with get_session() as session:
+            for title, score, published, profile in rows:
+                session.add(
+                    Article(
+                        url=f"https://example.com/{title}",
+                        title=title,
+                        published_date=published,
+                        feed_source="Test Feed",
+                        raw_content="content",
+                        feed_profile=profile,
+                        impact_score=score,
+                    )
+                )
+            session.commit()
+
+    def test_sort_by_single_key(self, scored_articles):
+        """A single sort key still works as before."""
+        titles = [a["title"] for a in get_all_articles(sort_by="published_date", direction="desc")]
+        assert titles == ["newer-low", "newer-high", "older-high"]
+
+    def test_sort_by_impact_then_date(self, scored_articles):
+        """Impact score first, published date breaking the tie."""
+        titles = [
+            a["title"] for a in get_all_articles(sort_by=["impact_score", "published_date"], direction=["desc", "asc"])
+        ]
+        assert titles == ["older-high", "newer-high", "newer-low"]
+
+    def test_sort_directions_are_independent_per_key(self, scored_articles):
+        """Flipping only the secondary direction reorders just the tied articles."""
+        titles = [
+            a["title"] for a in get_all_articles(sort_by=["impact_score", "published_date"], direction=["desc", "desc"])
+        ]
+        assert titles == ["newer-high", "older-high", "newer-low"]
+
+    def test_sort_by_feed_profile(self, scored_articles):
+        """Articles can be ordered by feed profile."""
+        profiles = [a["feed_profile"] for a in get_all_articles(sort_by="feed_profile", direction="asc")]
+        assert profiles == ["brasil", "tech", "tech"]
+
+    def test_unknown_sort_field_falls_back_to_published_date(self, scored_articles):
+        """An unknown sort field is ignored, leaving the default ordering."""
+        titles = [a["title"] for a in get_all_articles(sort_by="bogus_column", direction="desc")]
+        assert titles == ["newer-low", "newer-high", "older-high"]
+
+
+class TestImpactScoreFilter:
+    """Tests for filtering articles by impact score."""
+
+    @pytest.fixture
+    def scored_articles(self):
+        """Creates articles with impact scores 2, 5, 9 and one unscored."""
+        from datetime import datetime
+
+        from meridiano.models import Article
+
+        with get_session() as session:
+            for title, score in [("low", 2), ("mid", 5), ("high", 9), ("unscored", None)]:
+                session.add(
+                    Article(
+                        url=f"https://example.com/{title}",
+                        title=title,
+                        published_date=datetime(2024, 1, 1),
+                        feed_source="Test Feed",
+                        raw_content="content",
+                        feed_profile="tech",
+                        impact_score=score,
+                    )
+                )
+            session.commit()
+
+    def _titles(self, **kwargs):
+        return sorted(a["title"] for a in get_all_articles(**kwargs))
+
+    def test_more_than_is_strict(self, scored_articles):
+        assert self._titles(impact_op="gt", impact_value=5) == ["high"]
+
+    def test_less_than_is_strict(self, scored_articles):
+        assert self._titles(impact_op="lt", impact_value=5) == ["low"]
+
+    def test_equals(self, scored_articles):
+        assert self._titles(impact_op="eq", impact_value=5) == ["mid"]
+
+    def test_no_score(self, scored_articles):
+        assert self._titles(impact_op="none") == ["unscored"]
+
+    def test_no_filter_returns_all(self, scored_articles):
+        assert len(self._titles()) == 4
+
+    def test_count_respects_filter(self, scored_articles):
+        assert get_total_article_count(impact_op="gt", impact_value=1) == 3
 
 
 class TestFeedProfiles:
@@ -332,6 +440,27 @@ class TestCollections:
         assert len(articles) == 3
         retrieved_ids = {a["id"] for a in articles}
         assert retrieved_ids == set(article_ids)
+
+    def test_get_articles_for_collection_pagination(self, sample_article_data):
+        """page/per_page slice the collection, and omitting them returns everything."""
+        coll_id = create_collection("Paged Collection")
+        for i in range(5):
+            data = sample_article_data.copy()
+            data["url"] = f"http://example.com/paged/{i}"
+            add_article_to_collection(coll_id, add_article(**data))
+
+        all_articles = get_articles_for_collection(coll_id)
+        assert len(all_articles) == 5
+
+        first_page = get_articles_for_collection(coll_id, page=1, per_page=2)
+        second_page = get_articles_for_collection(coll_id, page=2, per_page=2)
+        last_page = get_articles_for_collection(coll_id, page=3, per_page=2)
+        assert [a["id"] for a in first_page] == [a["id"] for a in all_articles[:2]]
+        assert [a["id"] for a in second_page] == [a["id"] for a in all_articles[2:4]]
+        assert [a["id"] for a in last_page] == [a["id"] for a in all_articles[4:]]
+
+        # Past the end there is simply nothing left.
+        assert get_articles_for_collection(coll_id, page=99, per_page=2) == []
 
     def test_delete_collection(self, sample_article_data):
         """Test deleting a collection and its associations, but not the articles."""

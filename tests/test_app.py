@@ -4,6 +4,7 @@ Tests for Flask application routes.
 
 import os
 import sys
+from datetime import datetime
 
 import pytest
 
@@ -14,7 +15,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 # Import app after setting up test database
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 from meridiano.app import app
-from meridiano.database import add_article, create_collection, get_collection_by_id
+from meridiano.database import add_article, add_article_to_collection, create_collection, get_collection_by_id
 
 
 @pytest.fixture
@@ -61,6 +62,33 @@ class TestArticlesRoute:
         response = client.get("/articles?page=1")
         assert response.status_code == 200
 
+    def test_articles_route_shows_per_page_dropdown(self, client):
+        """The articles list offers a page size selector."""
+        response = client.get("/articles")
+        assert response.status_code == 200
+        assert b'name="per_page"' in response.data
+        assert b'<option value="50"' in response.data
+
+    def test_articles_route_honours_per_page(self, client):
+        """A valid per_page choice is applied and kept in the page links."""
+        response = client.get("/articles?per_page=50")
+        assert response.status_code == 200
+        assert b'<option value="50" selected' in response.data
+        assert b"per_page=50" in response.data
+
+    def test_articles_route_rejects_unknown_per_page(self, client):
+        """Values outside the offered choices fall back to the default."""
+        response = client.get("/articles?per_page=999")
+        assert response.status_code == 200
+        assert b'value="999"' not in response.data
+        assert b'<option value="15" selected' in response.data
+
+    def test_articles_route_ignores_non_numeric_per_page(self, client):
+        """A non-numeric per_page does not break the page."""
+        response = client.get("/articles?per_page=abc")
+        assert response.status_code == 200
+        assert b'<option value="15" selected' in response.data
+
     def test_articles_route_with_search(self, client):
         """Test articles route with search term."""
         response = client.get("/articles?search=test")
@@ -70,6 +98,181 @@ class TestArticlesRoute:
         """Test articles route with date filters."""
         response = client.get("/articles?start_date=2024-01-01&end_date=2024-01-31")
         assert response.status_code == 200
+
+    def test_articles_route_with_impact_filter(self, client):
+        """Impact filter narrows results and is carried into the page links."""
+        add_article(
+            url="https://example.com/high",
+            title="High Impact Story",
+            published_date=datetime(2024, 1, 1),
+            feed_source="Test Feed",
+            raw_content="content",
+            feed_profile="tech",
+        )
+        add_article(
+            url="https://example.com/none",
+            title="Unscored Story",
+            published_date=datetime(2024, 1, 1),
+            feed_source="Test Feed",
+            raw_content="content",
+            feed_profile="tech",
+        )
+        from meridiano.database import update_article_rating
+
+        update_article_rating(1, 8)
+
+        response = client.get("/articles?impact_op=gt&impact_score=5")
+        assert response.status_code == 200
+        assert b"High Impact Story" in response.data
+        assert b"Unscored Story" not in response.data
+        assert b"impact_op=gt&amp;impact_score=5" in response.data
+
+        response = client.get("/articles?impact_op=lt&impact_score=-")
+        assert b"Unscored Story" in response.data
+        assert b"High Impact Story" not in response.data
+
+    def test_articles_route_impact_equals_is_selected(self, client):
+        """The 'equals to' operator is accepted and pre-selected in the form."""
+        response = client.get("/articles?impact_op=eq&impact_score=7")
+        assert response.status_code == 200
+        assert b'value="eq" selected' in response.data
+
+    def test_articles_route_ignores_invalid_impact_score(self, client):
+        """An out-of-range impact score is ignored rather than erroring."""
+        response = client.get("/articles?impact_op=gt&impact_score=42")
+        assert response.status_code == 200
+
+    def test_articles_form_has_single_date_inputs(self, client):
+        """The form must not repeat start_date/end_date, or the typed dates get ignored.
+
+        Browsers submit every field in document order and Flask reads the first value,
+        so a hidden copy ahead of the visible date inputs would always win.
+        """
+        response = client.get("/articles?start_date=2024-01-01&end_date=2024-01-31")
+        assert response.status_code == 200
+        assert response.data.count(b'name="start_date"') == 1
+        assert response.data.count(b'name="end_date"') == 1
+
+    def test_articles_route_with_multiple_sort_keys(self, client):
+        """Test articles route accepts repeated sort_by/direction params."""
+        response = client.get("/articles?sort_by=impact_score&direction=desc&sort_by=published_date&direction=asc")
+        assert response.status_code == 200
+        # Both keys should be reflected in the sort controls links.
+        assert b"sort_by=impact_score&amp;sort_by=published_date" in response.data
+
+    def test_articles_route_sort_by_feed(self, client):
+        """Test articles route can sort by feed profile."""
+        response = client.get("/articles?sort_by=feed_profile&direction=asc")
+        assert response.status_code == 200
+
+    def test_articles_route_single_sort_key_can_be_removed(self, client):
+        """The 'x' is offered even when a single sort key is active."""
+        response = client.get("/articles?sort_by=impact_score&direction=desc")
+        assert response.status_code == 200
+        assert b"sort-remove" in response.data
+        assert b"Clear the sort and go back to the default" in response.data
+
+    def test_articles_route_without_sort_falls_back_to_default(self, client):
+        """Clearing the last sort key lands on the default sort."""
+        response = client.get("/articles")
+        assert response.status_code == 200
+        # Published Date is active again, so its 'x' resets rather than removes.
+        assert b"Clear the sort and go back to the default" in response.data
+
+
+class TestPerPageParsing:
+    """Tests for the articles page size argument."""
+
+    def test_parse_per_page_defaults(self):
+        from meridiano.app import _parse_per_page
+
+        per_page, options, per_page_param = _parse_per_page(None)
+        assert per_page == 15
+        assert per_page in options
+        # The default is implicit, so links do not need to carry it.
+        assert per_page_param is None
+
+    def test_parse_per_page_accepts_offered_choice(self):
+        from meridiano.app import _parse_per_page
+
+        assert _parse_per_page("100")[0] == 100
+        # A non-default size has to travel with the links.
+        assert _parse_per_page("100")[2] == 100
+
+    def test_parse_per_page_rejects_values_outside_the_choices(self):
+        from meridiano.app import _parse_per_page
+
+        assert _parse_per_page("7")[0] == 15
+        assert _parse_per_page("-10")[0] == 15
+        assert _parse_per_page("abc")[0] == 15
+
+    def test_parse_per_page_always_offers_the_configured_default(self):
+        from meridiano import app as app_module
+        from meridiano.app import _parse_per_page
+
+        original = app_module.config.ARTICLES_PER_PAGE
+        app_module.config.ARTICLES_PER_PAGE = 42
+        try:
+            per_page, options, _ = _parse_per_page(None)
+            assert per_page == 42
+            assert 42 in options
+            assert _parse_per_page("42")[0] == 42
+        finally:
+            app_module.config.ARTICLES_PER_PAGE = original
+
+
+class TestSortArgParsing:
+    """Tests for multi-key sort argument parsing."""
+
+    def test_parse_sort_args_defaults(self):
+        from meridiano.app import _parse_sort_args
+
+        assert _parse_sort_args([], []) == (["published_date"], ["desc"])
+
+    def test_parse_sort_args_pairs_directions_positionally(self):
+        from meridiano.app import _parse_sort_args
+
+        fields, directions = _parse_sort_args(["impact_score", "published_date"], ["desc", "asc"])
+        assert fields == ["impact_score", "published_date"]
+        assert directions == ["desc", "asc"]
+
+    def test_parse_sort_args_drops_unknown_and_duplicate_fields(self):
+        from meridiano.app import _parse_sort_args
+
+        fields, directions = _parse_sort_args(
+            ["impact_score", "bogus", "impact_score", "feed_profile"],
+            ["asc", "asc", "desc", "asc"],
+        )
+        assert fields == ["impact_score", "feed_profile"]
+        assert directions == ["asc", "asc"]
+
+    def test_parse_sort_args_defaults_missing_direction(self):
+        from meridiano.app import _parse_sort_args
+
+        fields, directions = _parse_sort_args(["impact_score", "published_date"], ["asc"])
+        assert directions == ["asc", "desc"]
+
+    def test_build_sort_options_toggles_and_appends(self):
+        from meridiano.app import _build_sort_options, _parse_sort_args
+
+        options = {opt["field"]: opt for opt in _build_sort_options(["impact_score"], ["desc"])}
+
+        active = options["impact_score"]
+        assert active["active"] is True
+        assert active["rank"] == 1
+        assert active["toggle_direction"] == ["asc"]
+        # Removing the only key leaves an empty chain, which parses back to the default.
+        assert active["remove_sort_by"] == []
+        assert active["remove_direction"] == []
+        assert _parse_sort_args(active["remove_sort_by"], active["remove_direction"]) == (
+            ["published_date"],
+            ["desc"],
+        )
+
+        inactive = options["published_date"]
+        assert inactive["active"] is False
+        assert inactive["toggle_sort_by"] == ["impact_score", "published_date"]
+        assert inactive["toggle_direction"] == ["desc", "desc"]
 
 
 class TestAddArticleRoute:
@@ -187,6 +390,58 @@ class TestCollectionsRoutes:
         assert b"Collection name is required." in response.data
         assert b"Collections" in response.data  # Should be back on the collections list page
 
+    def test_view_collection_paginates_articles(self, client, sample_article_data):
+        """A collection larger than the page size is split into pages."""
+        with app.app_context():
+            coll_id = create_collection("Big Collection")
+            for index in range(12):
+                article_id = add_article(**{**sample_article_data, "url": f"https://example.com/a{index}"})
+                add_article_to_collection(coll_id, article_id)
+
+        response = client.get(f"/collection/{coll_id}?per_page=10")
+        assert response.status_code == 200
+        assert b"Showing articles 1 - 10 of 12 total." in response.data
+        assert b"Page 1 of 2" in response.data
+        assert f"/collection/{coll_id}?page=2&amp;per_page=10".encode() in response.data
+
+        response = client.get(f"/collection/{coll_id}?page=2&per_page=10")
+        assert response.status_code == 200
+        assert b"Showing articles 11 - 12 of 12 total." in response.data
+
+    def test_view_collection_shows_per_page_dropdown(self, client, sample_article_data):
+        """The collection page offers the same page size selector as the articles list."""
+        with app.app_context():
+            coll_id = create_collection("Collection With Articles")
+            article_id = add_article(**sample_article_data)
+            add_article_to_collection(coll_id, article_id)
+
+        response = client.get(f"/collection/{coll_id}?per_page=50")
+        assert response.status_code == 200
+        assert b'name="per_page"' in response.data
+        assert b'<option value="50" selected' in response.data
+
+    def test_view_collection_rejects_unknown_per_page(self, client, sample_article_data):
+        """Page sizes outside the offered choices fall back to the default."""
+        with app.app_context():
+            coll_id = create_collection("Collection Default Size")
+            article_id = add_article(**sample_article_data)
+            add_article_to_collection(coll_id, article_id)
+
+        response = client.get(f"/collection/{coll_id}?per_page=999")
+        assert response.status_code == 200
+        assert b'value="999"' not in response.data
+        assert b'<option value="15" selected' in response.data
+
+    def test_view_empty_collection_hides_pagination_controls(self, client):
+        """An empty collection shows neither the selector nor a summary line."""
+        with app.app_context():
+            coll_id = create_collection("Empty Collection")
+
+        response = client.get(f"/collection/{coll_id}")
+        assert response.status_code == 200
+        assert b'name="per_page"' not in response.data
+        assert b"No articles in this collection yet." in response.data
+
     def test_view_collection_not_found(self, client):
         """Test viewing a non-existent collection."""
         response = client.get("/collection/999")
@@ -213,7 +468,7 @@ class TestCollectionsRoutes:
         # Check we are back on the collections list page
         assert b"Collections" in response.data
         # Check for success flash message
-        assert b'Collection &#34;Ephemeral Collection&#34; has been deleted.' in response.data
+        assert b"Collection &#34;Ephemeral Collection&#34; has been deleted." in response.data
         # Check the link to the collection is no longer on the page.
         # We don't check for the name alone, as it appears in the flash message.
         assert f'<a href="/collection/{coll_id}"'.encode() not in response.data
@@ -248,7 +503,7 @@ class TestCollectionsRoutes:
         # Verify in DB
         with app.app_context():
             coll = get_collection_by_id(coll_id)
-            assert coll['archived'] is True
+            assert coll["archived"] is True
 
         # 3. Verify it shows up in "Archived Collections" section
         response = client.get("/collections")
@@ -263,7 +518,7 @@ class TestCollectionsRoutes:
         # Verify in DB
         with app.app_context():
             coll = get_collection_by_id(coll_id)
-            assert coll['archived'] is False
+            assert coll["archived"] is False
 
     def test_archive_nonexistent_collection(self, client):
         """Test attempting to archive a collection that doesn't exist."""
